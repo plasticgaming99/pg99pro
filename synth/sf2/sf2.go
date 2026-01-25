@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	sfbk = riff.FourCC{'s', 'f', 'b', 'k'}
+	Sfbk = riff.FourCC{'s', 'f', 'b', 'k'}
 
 	INFO = riff.FourCC{'I', 'N', 'F', 'O'}
 
@@ -44,7 +44,7 @@ var (
 
 type SF2Raw struct {
 	Info InfoStruct
-	Stda StdaStruct
+	Sdta SdtaStruct
 	Pdta PdtaStruct
 }
 
@@ -62,7 +62,7 @@ type InfoStruct struct {
 	ISFT []byte
 }
 
-type StdaStruct struct {
+type SdtaStruct struct {
 	Smpl []byte
 	Sm24 []byte
 }
@@ -90,7 +90,7 @@ func ParseSF2Raw(rd io.Reader) (SF2Raw, error) {
 		return SF2Raw{}, err
 	}
 
-	if fcc != sfbk {
+	if fcc != Sfbk {
 		return SF2Raw{}, fmt.Errorf("sf2: not a soundfont")
 	}
 
@@ -156,9 +156,9 @@ func ParseSF2Raw(rd io.Reader) (SF2Raw, error) {
 
 					switch chunkid {
 					case Smpl:
-						sf2raw.Stda.Smpl, err = io.ReadAll(chunkdata)
+						sf2raw.Sdta.Smpl, err = io.ReadAll(chunkdata)
 					case Sm24:
-						sf2raw.Stda.Sm24, err = io.ReadAll(chunkdata)
+						sf2raw.Sdta.Sm24, err = io.ReadAll(chunkdata)
 					}
 				}
 			case Pdta:

@@ -5,8 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/plasticgaming99/pg99pro/synth"
-	"github.com/plasticgaming99/pg99pro/synth/sf2"
+	"github.com/plasticgaming99/pg99pro/synth/sf2abst"
 )
 
 func Execute(args []string) {
@@ -14,12 +13,28 @@ func Execute(args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	sf2, err := sf2.ParseSF2Raw(f)
+	sf2, err := sf2abst.ParseSF2Abst(f)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("soundfont name: ", string(sf2.Info.INAM))
+	PrintlnSF2Bulk(os.Stdout, sf2)
+
+	for i := 0; i < len(sf2.Pdta.Igen); i++ {
+		fmt.Println(i, sf2.Pdta.Igen[i])
+	}
+
+	/*op := &oto.NewContextOptions{
+		SampleRate:   31000,
+		ChannelCount: 2,
+		Format:       oto.FormatSignedInt16LE,
+		BufferSize:   10 * time.Millisecond,
+	}
+	otoCtx, readyChan, err := oto.NewContext(op)
+	if err != nil {
+		panic("oto.NewContext failed: " + err.Error())
+	}
+	<-readyChan
 
 	fmt.Println("start synthesizer")
-	synth.Synthesis()
+	synth.Synthesis(&sf2, otoCtx)*/
 }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -18,10 +17,6 @@ func Execute(args []string) {
 		log.Fatal(err)
 	}
 	PrintlnSF2Bulk(os.Stdout, sf2)
-
-	for i := 0; i < len(sf2.Pdta.Igen); i++ {
-		fmt.Println(i, sf2.Pdta.Igen[i])
-	}
 
 	/*op := &oto.NewContextOptions{
 		SampleRate:   31000,

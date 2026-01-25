@@ -1,6 +1,6 @@
 package sf2abst
 
-type GeneratorId int
+type GeneratorId = uint16
 
 const (
 	Op_startAddrsOffset GeneratorId = iota

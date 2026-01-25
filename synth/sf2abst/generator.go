@@ -2,13 +2,163 @@ package sf2abst
 
 import "math"
 
-func MapGenerator() Generator {
-	return
+func MapGenerator(g []Pgen) []Generator {
+	rtGen := make([]Generator, 0)
+	for i := 0; i < len(g); i++ {
+	}
+	return rtGen
+}
+
+func GetGlobalGenerator(g []Pgen, terminator GeneratorId) Generator {
+	gen := Generator{}
+	for i := 0; i < len(g); i++ {
+		if g[i].GenOper == terminator {
+			gen = PGenToGenerator(nil, g[:i])
+			break
+		}
+	}
+	return gen
+}
+
+// if no global generator, you can use nil
+func PGenToGenerator(global *Generator, p []Pgen) Generator {
+	g := Generator{}
+	if global != nil {
+		g = *global
+	}
+	for i := 0; i < len(p); i++ {
+		switch p[i].GenOper {
+		case Op_startAddrsOffset:
+			g.Sample.StartAddrssOffset = p[i].GenAmount
+		case Op_endAddrsOffset:
+			g.Sample.EndAddrsOffset = p[i].GenAmount
+		case Op_startloopAddrsOffset:
+			g.Sample.StartLoopAddrsOffset = p[i].GenAmount
+		case Op_endloopAddrsOffset:
+			g.Sample.EndLoopAddrsOffset = p[i].GenAmount
+		case Op_startAddrsCoarseOffset:
+			g.Sample.StartAddrsCoarseOffset = p[i].GenAmount
+		case Op_modLfoToPitch:
+			g.LFO.ModLfoToPitch += p[i].GenAmount
+		case Op_vibLfoToPitch:
+			// currently not
+		case Op_modEnvToPitch:
+			g.Filter.EnvToPitch = p[i].GenAmount
+		case Op_initialFilterFc:
+			g.Filter.InitialFilterFc = p[i].GenAmount
+		case Op_initialFilterQ:
+			g.Filter.InitialFilterQ = p[i].GenAmount
+		case Op_modLfoToFilterFc:
+			g.LFO.ModLfoToFilterFc = p[i].GenAmount
+		case Op_modEnvToFilterFc:
+			g.Filter.EnvToFilterFc = p[i].GenAmount
+		case Op_endAddrsCoarseOffset:
+			g.Sample.EndAddrsCoarseOffset = p[i].GenAmount
+		case Op_modLfoToVolume:
+			g.LFO.ModLfoToVolume = p[i].GenAmount
+		case Op_unused1:
+			// unused1 is unused!
+		case Op_chorusEffectsSend:
+			g.Effect.ChorusEffectsSend = p[i].GenAmount
+		case Op_reverbEffectsSend:
+			g.Effect.ChorusEffectsSend = p[i].GenAmount
+		case Op_pan:
+			g.Amp.Pan += p[i].GenAmount
+		case Op_unused2:
+			// unused 2 is unused!!
+		case Op_unused3:
+			// unused 3 is unused!!!
+		case Op_unused4:
+			// unused 4 is unused!!!!
+		case Op_delayModLFO:
+			g.LFO.DelayMod = p[i].GenAmount
+		case Op_freqModLFO:
+			g.LFO.FreqMod = p[i].GenAmount
+		case Op_delayVibLFO:
+			// wheel isnt yet
+		case Op_freqVibLFO:
+			// wheel isnt yet
+		case Op_delayModEnv:
+			g.Filter.DelayModEnv = p[i].GenAmount
+		case Op_attackModEnv:
+			g.Filter.AttackModEnv = p[i].GenAmount
+		case Op_holdModEnv:
+			g.Filter.HoldModEnv = p[i].GenAmount
+		case Op_decayModEnv:
+			g.Filter.DecayModEnv = p[i].GenAmount
+		case Op_sustainModEnv:
+			g.Filter.SustainModEnv = p[i].GenAmount
+		case Op_releaseModEnv:
+			g.Filter.ReleaseModEnv = p[i].GenAmount
+		case Op_keynumToModEnvHold:
+			g.Filter.KeynumToModEnvHold = p[i].GenAmount
+		case Op_keynumToModEnvDecay:
+			g.Filter.KeynumToModEnvDecay = p[i].GenAmount
+		case Op_delayVolEnv:
+			g.Amp.DecayVolEnv = p[i].GenAmount
+		case Op_attackVolEnv:
+			g.Amp.AttackVolEnv = p[i].GenAmount
+		case Op_holdVolEnv:
+			g.Amp.HoldVolEnv = p[i].GenAmount
+		case Op_decayVolEnv:
+			g.Amp.DelayVolEnv = p[i].GenAmount
+		case Op_sustainVolEnv:
+			g.Amp.SustainVolEnv = p[i].GenAmount
+		case Op_releaseVolEnv:
+			g.Amp.ReleaseVolEnv = p[i].GenAmount
+		case Op_keynumToVolEnvHold:
+			g.Amp.KeynumToVolEnvHold = p[i].GenAmount
+		case Op_keynumToVolEnvDecay:
+			g.Amp.KeynumToVolEnvDecay = p[i].GenAmount
+		case Op_instrument:
+			g.Etc.Instrument = p[i].GenAmount
+		case Op_reserved1:
+			// unused
+		case Op_keyRange:
+			g.Etc.KeyRange = p[i].GenAmount
+		case Op_velRange:
+			g.Etc.VelRange = p[i].GenAmount
+		case Op_startloopAddrsCoarseOffset:
+			g.Sample.StartAddrsCoarseOffset = p[i].GenAmount
+		case Op_keynum:
+			g.Etc.Keynum = p[i].GenAmount
+		case Op_velocity:
+			g.Etc.Velocity = p[i].GenAmount
+		case Op_initialAttenuation:
+			g.Amp.InitialAttenuation += p[i].GenAmount
+		case Op_reserved2:
+			// unused
+		case Op_endloopAddrsCoarseOffset:
+			g.Sample.EndAddrsCoarseOffset = p[i].GenAmount
+		case Op_coarseTune:
+			g.Sample.CoarseTune += p[i].GenAmount
+		case Op_fineTune:
+			g.Sample.FineTune += p[i].GenAmount
+		case Op_sampleID:
+			g.Etc.SampleID = p[i].GenAmount
+		case Op_sampleModes:
+			g.Etc.SampleModes = p[i].GenAmount
+		case Op_reserved3:
+			// unused
+		case Op_scaleTuning:
+			g.Etc.ScaleTuning = p[i].GenAmount
+		case Op_exclusiveClass:
+			g.Etc.ExclusiveClass = p[i].GenAmount
+		case Op_overridingRootKey:
+			g.Sample.OverridingRootKey = p[i].GenAmount
+		case Op_unused5:
+			// unused 5 is unused!!!!!
+		case Op_endoper:
+			// end
+		}
+	}
+	return g
 }
 
 type Generator struct {
 	Sample Sample
 	Filter Filter
+	Effect Effect
 	Amp    Amp
 	LFO    LFO
 	Etc    Etc
@@ -30,6 +180,7 @@ type Filter struct {
 	EnvToPitch          int16 // envelope to pitch
 	InitialFilterFc     int16 // initial filter frequency cutoff
 	InitialFilterQ      int16 // initial filter Q
+	EnvToFilterFc       int16 // envelope filter cutoff
 	DelayModEnv         int16 // filter/pitch envelope delay
 	AttackModEnv        int16 // filter/pitch envelope attack time
 	HoldModEnv          int16 // filter/pitch envelope hold time
@@ -40,17 +191,22 @@ type Filter struct {
 	KeynumToModEnvDecay int16 // keynum effect to decay time
 }
 
+type Effect struct {
+	ChorusEffectsSend int16 // chorus level
+	ReverbEffectsSend int16 // reverb level
+}
+
 type Amp struct {
-	Pan                 int16   // pan
-	DelayVolEnv         int16   // envelope delay
-	AttackVolEnv        int16   // envelope attack time
-	HoldVolEnv          int16   // envelope hold time
-	DecayVolEnv         int16   // envelope decay time
-	SustainVolEnv       int16   // envelope sustain amount
-	ReleaseVolEnv       int16   // envelope release time
-	KeynumToVolEnvHold  int16   // key effect to hold time
-	KeynumToVolEnvDecay float32 // key effect to decay time
-	InitialAttenuation  float32 // volume
+	Pan                 int16 // pan
+	DelayVolEnv         int16 // envelope delay
+	AttackVolEnv        int16 // envelope attack time
+	HoldVolEnv          int16 // envelope hold time
+	DecayVolEnv         int16 // envelope decay time
+	SustainVolEnv       int16 // envelope sustain amount
+	ReleaseVolEnv       int16 // envelope release time
+	KeynumToVolEnvHold  int16 // key effect to hold time
+	KeynumToVolEnvDecay int16 // key effect to decay time
+	InitialAttenuation  int16 // volume
 }
 
 type LFO struct {
@@ -77,6 +233,7 @@ type Etc struct {
 type GeneratorParam struct {
 	Sample SampleParam
 	Filter FilterParam
+	Effect EffectParam
 	Amp    AmpParam
 	LFO    LFOParam
 	Etc    EtcParam
@@ -95,6 +252,8 @@ func (g *Generator) ToParam() GeneratorParam {
 		Filter: FilterParam{
 			EnvToPitch:          g.Filter.EnvToPitch / 100,
 			InitialFilterFc:     float32(8.16 * math.Pow(2, float64(g.Filter.InitialFilterFc)/1200)),
+			InitialFilterQ:      int16(math.Round(float64(g.Filter.InitialFilterQ) / 10)),
+			EnvToFilterFc:       int16(math.Round(float64(g.Filter.InitialFilterFc) / 100)),
 			DelayModEnv:         float32(math.Pow(2, float64(g.Filter.InitialFilterFc)/1200)),
 			AttackModEnv:        float32(math.Pow(2, float64(g.Filter.AttackModEnv)/1200)),
 			HoldModEnv:          float32(math.Pow(2, float64(g.Filter.HoldModEnv)/1200)),
@@ -103,6 +262,10 @@ func (g *Generator) ToParam() GeneratorParam {
 			ReleaseModEnv:       int16(math.Round(math.Pow(2, float64(g.Filter.ReleaseModEnv)/1200))),
 			KeynumToModEnvHold:  int16(math.Round(float64(g.Filter.KeynumToModEnvHold / 100))),
 			KeynumToModEnvDecay: int16(math.Round(float64(g.Filter.KeynumToModEnvDecay / 100))),
+		},
+		Effect: EffectParam{
+			ReverbEffectsSend: int16(math.Round(float64(g.Effect.ReverbEffectsSend) / 10)),
+			ChorusEffectsSend: int16(math.Round(float64(g.Effect.ChorusEffectsSend) / 10)),
 		},
 		Amp: AmpParam{
 			Pan:                 int16(math.Round(float64(g.Amp.Pan) / 10)),
@@ -153,6 +316,7 @@ type FilterParam struct {
 	EnvToPitch          int16   // (key) envelope to pitch
 	InitialFilterFc     float32 // (Hz) initial filter frequency cutoff
 	InitialFilterQ      int16   // (dB) initial filter Q
+	EnvToFilterFc       int16   // (key) envelope filter cutoff
 	DelayModEnv         float32 // (sec) filter/pitch envelope delay
 	AttackModEnv        float32 // (sec) filter/pitch envelope attack time
 	HoldModEnv          float32 // (sec) filter/pitch envelope hold time
@@ -161,6 +325,11 @@ type FilterParam struct {
 	ReleaseModEnv       int16   // (sec) filter/pitch envelope release time
 	KeynumToModEnvHold  int16   // (key) keynum effect to decay hold
 	KeynumToModEnvDecay int16   // (key) keynum effect to decay time
+}
+
+type EffectParam struct {
+	ChorusEffectsSend int16 // chorus level
+	ReverbEffectsSend int16 // reverb level
 }
 
 type AmpParam struct {

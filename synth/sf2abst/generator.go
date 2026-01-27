@@ -288,8 +288,8 @@ func (g *Generator) ToParam() GeneratorParam {
 		},
 		Etc: EtcParam{
 			Instrument:     g.Etc.Instrument,
-			KeyRange:       g.Etc.KeyRange,
-			VelRange:       g.Etc.VelRange,
+			KeyRange:       ParseSFRange(uint16(g.Etc.KeyRange)),
+			VelRange:       ParseSFRange(uint16(g.Etc.VelRange)),
 			Keynum:         g.Etc.Keynum,
 			Velocity:       g.Etc.Velocity,
 			SampleID:       g.Etc.SampleID,
@@ -354,13 +354,29 @@ type LFOParam struct {
 }
 
 type EtcParam struct {
-	Instrument     int16 // (instrument id) instrument
-	KeyRange       int16 // key range
-	VelRange       int16 // vel range
-	Keynum         int16 // (gm key) force keynum
-	Velocity       int16 // (gm vel) force velocity
-	SampleID       int16 // (sample id) sample id
-	SampleModes    int16 // (flag) loop
-	ScaleTuning    int16 // (key) cent per key++
-	ExclusiveClass int16 // one sound per time
+	Instrument     int16    // (instrument id) instrument
+	KeyRange       KeyRange // key range
+	VelRange       VelRange // vel range
+	Keynum         int16    // (gm key) force keynum
+	Velocity       int16    // (gm vel) force velocity
+	SampleID       int16    // (sample id) sample id
+	SampleModes    int16    // (flag) loop
+	ScaleTuning    int16    // (key) cent per key++
+	ExclusiveClass int16    // one sound per time
+}
+
+type rangeMinMax struct {
+	min uint8
+	max uint8
+}
+
+type KeyRange = rangeMinMax
+
+type VelRange = rangeMinMax
+
+func ParseSFRange(u uint16) rangeMinMax {
+	rt := rangeMinMax{}
+	rt.min = uint8(u & 0x00FF)
+	rt.max = uint8(u >> 8)
+	return rt
 }

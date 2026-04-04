@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/plasticgaming99/pg99pro/gui"
 	"github.com/plasticgaming99/pg99pro/synth/sf2abst"
 )
 
@@ -13,18 +16,27 @@ func Execute(args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	sf2, err := sf2abst.ParseSF2Abst(f)
+	op := sf2abst.NewParseSF2RawOptions()
+	op.ReadSdta = false
+	sf2, err := sf2abst.ParseSF2Abst(f, op)
 	if err != nil {
 		log.Fatal(err)
 	}
-	PrintlnSF2Bulk(os.Stdout, sf2)
+	PrintlnSF2Bulk(os.Stdout, &sf2)
 
-	ph := sf2.Pdta.Phdr[0]
-	index := sf2.Pdta.Pbag[ph.BagIndex].GenIndex
-	u := uint16(32768)
-	i := int16(u)
-	fmt.Println(u, i)
-	fmt.Println("generator", sf2.Pdta.Ibag[1].GenIndex)
+	i := sf2abst.InstrumentFromSF2Abst(&sf2)
+
+	p := sf2abst.PresetFromSF2Abst(&sf2)
+
+	fmt.Println()
+	fmt.Println("sf2 samples    :", len(sf2.Pdta.Shdr))
+	fmt.Println("sf2 instruments:", len(i))
+	fmt.Println("sf2 presets    :", len(p))
+	spew.Dump()
+
+	//spew.Dump(sf2abst.GeneratorsToParam(sf2abst.PresetToGenerator(0, sf2)))
+
+	/*index := sf2.Pdta.Pbag[0].GenIndex
 	for {
 		fmt.Println(sf2.Pdta.Pgen[index])
 		if int(sf2.Pdta.Pgen[index].GenOper) == int(sf2abst.Op_instrument) {
@@ -33,6 +45,22 @@ func Execute(args []string) {
 			break
 		}
 		index++
+	}*/
+
+	/*inindex := sf2.Pdta.Ibag[0].GenIndex
+	for {
+		fmt.Println(sf2.Pdta.Igen[inindex])
+		if int(sf2.Pdta.Igen[inindex].GenOper) == int(sf2abst.Op_sampleID) {
+			g := sf2abst.PGenToGenerator(nil, sf2.Pdta.Pgen[0:inindex-1])
+			fmt.Println(g.ToParam())
+			break
+		}
+		inindex++
+	}*/
+	//fmt.Println(sf2.Pdta.Igen[len(sf2.Pdta.Igen)-1])
+
+	if slices.Contains(args, "--gui") {
+		gui.Execute()
 	}
 
 	/*for i := range 5 {

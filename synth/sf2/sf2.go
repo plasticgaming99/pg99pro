@@ -83,7 +83,21 @@ type PdtaStruct struct {
 	return ParseSF2Raw(rd)
 }*/
 
-func ParseSF2Raw(rd io.Reader) (SF2Raw, error) {
+func NewParseSF2RawOptions() ParseSF2RawOptions {
+	return ParseSF2RawOptions{
+		ReadSdta: true,
+	}
+}
+
+type ParseSF2RawOptions struct {
+	ReadSdta bool
+}
+
+func ParseSF2Raw(rd io.Reader, op *ParseSF2RawOptions) (SF2Raw, error) {
+	if op == nil {
+		newop := NewParseSF2RawOptions()
+		op = &newop
+	}
 	sf2raw := SF2Raw{}
 	fcc, data, err := riff.NewReader(rd)
 	if err != nil {

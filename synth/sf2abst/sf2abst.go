@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/davecgh/go-spew/spew"
 	sf2raw "github.com/plasticgaming99/pg99pro/synth/sf2"
 	"golang.org/x/image/riff"
 )
@@ -16,7 +17,21 @@ type SF2Abst struct {
 	Pdta PdtaStruct
 }
 
-func ParseSF2Abst(rd io.Reader) (SF2Abst, error) {
+func NewParseSF2RawOptions() *ParseSF2AbstOptions {
+	return &ParseSF2AbstOptions{
+		ReadSdta: true,
+	}
+}
+
+type ParseSF2AbstOptions struct {
+	ReadSdta bool
+}
+
+func ParseSF2Abst(rd io.Reader, op *ParseSF2AbstOptions) (SF2Abst, error) {
+	if op == nil {
+		op = NewParseSF2RawOptions()
+	}
+	spew.Dump(op)
 	sf2 := SF2Abst{}
 	fcc, data, err := riff.NewReader(rd)
 	if err != nil {
@@ -93,6 +108,11 @@ func ParseSF2Abst(rd io.Reader) (SF2Abst, error) {
 			case sf2raw.Sdta:
 				for {
 					chunkid, _, chunkdata, err := lsread.Next()
+
+					if !op.ReadSdta {
+						break
+					}
+
 					if err == io.EOF {
 						break
 					} else if err != nil {

@@ -8,7 +8,7 @@ import (
 	"github.com/plasticgaming99/pg99pro/synth/sf2abst"
 )
 
-func PrintlnSF2Bulk(w io.Writer, sf2 sf2abst.SF2Abst) {
+func PrintlnSF2Bulk(w io.Writer, sf2 *sf2abst.SF2Abst) {
 	fmt.Fprintln(w, "--- information(INFO) chunk")
 	fmt.Fprintln(w, "soundfont version(ifil) :", strconv.FormatUint(uint64(sf2.Info.Ifil.Major), 16)+"."+strconv.FormatUint(uint64(sf2.Info.Ifil.Minor), 16))
 	fmt.Fprintln(w, "target chip(isng)       :", sf2.Info.Isng)

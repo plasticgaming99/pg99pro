@@ -38,20 +38,28 @@ func InstToGenerators(index int, sf2 SF2Abst) []Generator {
 	localStart := index
 	if pgs != nil {
 		global = PGenToGenerator(nil, pgs)
-		localStart = int(sf2.Pdta.Phdr[index].BagIndex)
+		localStart = int(sf2.Pdta.Inst[index].BagIndex)
 	}
 
 	rtGen := make([]Generator, 0)
 
-	for i := localStart; i < int(sf2.Pdta.Phdr[index+1].BagIndex); i++ {
-		gi := sf2.Pdta.Pbag[i].GenIndex
+	endLen := 0
+
+	if len(sf2.Pdta.Inst)-1 == index {
+		endLen = len(sf2.Pdta.Ibag) - 1
+	} else {
+		endLen = int(sf2.Pdta.Inst[index+1].BagIndex)
+	}
+
+	for i := localStart; i < endLen; i++ {
+		gi := sf2.Pdta.Ibag[i].GenIndex
 		ngi := 0
-		if i+1 < len(sf2.Pdta.Pbag) {
-			ngi = int(sf2.Pdta.Pbag[i+1].GenIndex)
+		if i+1 < len(sf2.Pdta.Ibag) {
+			ngi = int(sf2.Pdta.Ibag[i+1].GenIndex)
 		} else {
-			ngi = len(sf2.Pdta.Pgen)
+			ngi = len(sf2.Pdta.Igen)
 		}
-		rtGen = append(rtGen, PGenToGenerator(&global, sf2.Pdta.Pgen[gi:ngi]))
+		rtGen = append(rtGen, PGenToGenerator(&global, sf2.Pdta.Igen[gi:ngi]))
 	}
 	return rtGen
 }

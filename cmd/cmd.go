@@ -5,14 +5,18 @@ import (
 	"log"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/ebitengine/oto/v3"
 	"github.com/plasticgaming99/pg99pro/gui"
+	"github.com/plasticgaming99/pg99pro/synth/pcmsynth"
 	"github.com/plasticgaming99/pg99pro/synth/sf2abst"
 )
 
 func Execute(args []string) {
 	f, err := os.Open(args[0])
+	defer f.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -32,7 +36,17 @@ func Execute(args []string) {
 	fmt.Println("sf2 samples    :", len(sf2.Pdta.Shdr))
 	fmt.Println("sf2 instruments:", len(i))
 	fmt.Println("sf2 presets    :", len(p))
-	spew.Dump()
+	spew.Dump(p[0].Zones)
+	new, err := os.Open(args[0])
+	spew.Dump(err)
+	gvop := pcmsynth.NewGenerateVoicesOptions()
+	gvop.ResamplerEnabled = true
+	gvop.Use16bitSamples = true
+	gvop.UseBytesFromSF2Abst = false
+	gvop.ResamplerRate = 48000
+	v, err := pcmsynth.GenerateVoices(&sf2, gvop, new)
+	spew.Dump(err)
+	fmt.Println(len(v))
 
 	//spew.Dump(sf2abst.GeneratorsToParam(sf2abst.PresetToGenerator(0, sf2)))
 
@@ -63,22 +77,41 @@ func Execute(args []string) {
 		gui.Execute()
 	}
 
-	/*for i := range 5 {
-		fmt.Println(sf2.Pdta.Pgen[i])
-	}*/
-
-	/*op := &oto.NewContextOptions{
-		SampleRate:   31000,
-		ChannelCount: 2,
+	otoop := &oto.NewContextOptions{
+		SampleRate:   44100,
+		ChannelCount: 1,
 		Format:       oto.FormatSignedInt16LE,
 		BufferSize:   10 * time.Millisecond,
 	}
-	otoCtx, readyChan, err := oto.NewContext(op)
+	otoCtx, readyChan, err := oto.NewContext(otoop)
 	if err != nil {
 		panic("oto.NewContext failed: " + err.Error())
 	}
 	<-readyChan
 
-	fmt.Println("start synthesizer")
-	synth.Synthesis(&sf2, otoCtx)*/
+	fmt.Println("now playing?")
+
+	voicetoplay := &v[60]
+
+	fmt.Println(voicetoplay.Name)
+
+	rd := pcmsynth.NewVoiceReader(voicetoplay)
+
+	/*vtp := v[100]
+	fmt.Println(vtp.Name)
+	voicebyte := make([]byte, 0)
+	for i := 0; i < len(vtp.Sample); i++ {
+		b := make([]byte, 2)
+		binary.LittleEndian.PutUint16(b, uint16(int16(vtp.Sample[i])))
+		voicebyte = append(voicebyte, b...)
+	}*/
+
+	//pl := otoCtx.NewPlayer(bytes.NewReader(voicebyte))
+	pl := otoCtx.NewPlayer(&rd)
+	pl.Play()
+	for pl.IsPlaying() {
+		time.Sleep(time.Millisecond)
+	}
+
+	//fmt.Println("start synthesizer")
 }

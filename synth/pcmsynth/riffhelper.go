@@ -5,43 +5,6 @@ import (
 	"io"
 )
 
-/*func FindSmplToOffset(s io.ReadSeeker) (offset int64, size int64, err error) {
-	_, err = s.Seek(12, io.SeekStart)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	for {
-		var chunkID [4]byte
-		var chunkSize uint32
-
-		// read chunk header
-		if err = binary.Read(s, binary.LittleEndian, &chunkID); err != nil {
-			return
-		}
-		if err = binary.Read(s, binary.LittleEndian, &chunkSize); err != nil {
-			return
-		}
-
-		cur, _ := s.Seek(0, io.SeekCurrent)
-
-		if string(chunkID[:]) == "smpl" {
-			return int64(cur), int64(chunkSize), nil
-		}
-
-		// skip chunk (+ pad)
-		skip := int64(chunkSize)
-		if skip%2 == 1 {
-			skip++
-		}
-
-		_, err = s.Seek(skip, io.SeekCurrent)
-		if err != nil {
-			return
-		}
-	}
-}*/
-
 func FindSmplToOffset(f io.ReadSeeker) (int64, int64, error) {
 	// skip RIFF header
 	_, err := f.Seek(12, io.SeekStart)

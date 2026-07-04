@@ -1,53 +1,69 @@
 package pcmsynth
 
 import (
-	"encoding/binary"
+	"io"
+
+	"github.com/plasticgaming99/pg99pro/synth/sf2abst"
 )
 
-func NewVoiceReader(v *Voice) VoiceReader {
-	vr := VoiceReader{
+type VoiceReader interface {
+	ReadFloat32(f32 []float32) (n int, err error)
+	NoteOff()
+}
+
+// generate synthesizable voice
+// with some envelope parameters
+func NewVoice(v *VoiceSample, g *sf2abst.GeneratorParam) *Voice {
+	vr := Voice{
 		voice:       v,
+		generator:   g,
 		currentStep: 0,
+		step:        1.,
 	}
-	return vr
+	return &vr
 }
 
-type VoiceReader struct {
-	voice       *Voice
-	currentStep int // 1 per 2 byte
+type Voice struct {
+	voice       *VoiceSample
+	generator   *sf2abst.GeneratorParam
+	currentStep float64 // 1 per 2 byte
+
+	baseStep float64
+	step     float64 // pitch
+
+	key          int
+	vel          int
+	panpotOffset int // mainly for rendering stereo samples
+
+	decay bool
 }
 
-/*func (v *VoiceReader) Read(b []byte) (n int, err error) {
-	i := v.currentStep
-	for ; i < len(b)/2; i++ {
-		if len(v.voice.Sample) < i || int(v.voice.LoopEnd) < i {
-			fmt.Println(v.voice.Name)
-			i = int(v.voice.LoopStart)
-		}
-
-		buf := make([]byte, 2)
-		binary.LittleEndian.AppendUint16(buf, uint16(v.voice.Sample[i]))
-		b = append(b, buf...)
+func (v *Voice) ReadFloat32(b []float32) (n int, err error) {
+	if len(b) < 1 {
+		return 0, io.ErrShortBuffer
 	}
-	v.currentStep = i
-	return i * 2, err
-}*/
 
-func (v *VoiceReader) Read(b []byte) (n int, err error) {
-	maxSamples := len(b) / 2 // 16bit sample
-
-	for i := 0; i < maxSamples; i++ {
-		if v.currentStep >= len(v.voice.Sample) || v.currentStep >= int(v.voice.LoopEnd) {
-			v.currentStep = int(v.voice.LoopStart)
+	for i := 0; i < len(b); i++ {
+		if int(v.currentStep) >= len(v.voice.Sample) || int(v.currentStep) >= int(v.voice.LoopEnd) {
+			if v.decay {
+				return i, io.EOF
+			}
+			v.currentStep = float64(v.voice.LoopStart)
 		}
 
-		sample := uint16(v.voice.Sample[v.currentStep])
+		b[i] = v.voice.Sample[int(v.currentStep)]
 
-		binary.LittleEndian.PutUint16(b[i*2:], sample)
-
-		v.currentStep++
-		n += 2
+		v.currentStep += v.step
+		n++
 	}
 
 	return n, nil
+}
+
+func (v *Voice) PitchBend(pitch int) {
+	v.step = v.baseStep * (float64(pitch) / 8192)
+}
+
+func (v *Voice) NoteOff() {
+	v.decay = true
 }

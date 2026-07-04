@@ -17,11 +17,11 @@ func SampleFromSF2Abst(s *SF2Abst) []Sample {
 type Zone struct {
 	KeyMin, KeyMax uint8
 	VelMin, VelMax uint8
-	GenParam       GeneratorParam
 }
 
 type Instrument struct {
-	Zones []Zone
+	Generators []Generator
+	Zones      []Zone
 }
 
 func InstrumentFromSF2Abst(s *SF2Abst) []Instrument {
@@ -33,22 +33,22 @@ func InstrumentFromSF2Abst(s *SF2Abst) []Instrument {
 		for i := range len(gens) {
 			gp := gens[i].ToParam()
 			z := Zone{
-				KeyMin:   gp.Etc.KeyRange.Min,
-				KeyMax:   gp.Etc.KeyRange.Max,
-				VelMin:   gp.Etc.VelRange.Min,
-				VelMax:   gp.Etc.VelRange.Max,
-				GenParam: gp,
+				KeyMin: gp.Etc.KeyRange.Min,
+				KeyMax: gp.Etc.KeyRange.Max,
+				VelMin: gp.Etc.VelRange.Min,
+				VelMax: gp.Etc.VelRange.Max,
 			}
 			zones = append(zones, z)
 		}
-		inst = append(inst, Instrument{Zones: zones})
+		inst = append(inst, Instrument{Generators: gens, Zones: zones})
 	}
 
 	return inst
 }
 
 type Preset struct {
-	Zones []Zone
+	Generators []Generator
+	Zones      []Zone
 }
 
 func PresetFromSF2Abst(s *SF2Abst) []Preset {
@@ -60,15 +60,14 @@ func PresetFromSF2Abst(s *SF2Abst) []Preset {
 		for i := range len(gens) {
 			gp := gens[i].ToParam()
 			z := Zone{
-				KeyMin:   gp.Etc.KeyRange.Min,
-				KeyMax:   gp.Etc.KeyRange.Max,
-				VelMin:   gp.Etc.VelRange.Min,
-				VelMax:   gp.Etc.VelRange.Max,
-				GenParam: gp,
+				KeyMin: gp.Etc.KeyRange.Min,
+				KeyMax: gp.Etc.KeyRange.Max,
+				VelMin: gp.Etc.VelRange.Min,
+				VelMax: gp.Etc.VelRange.Max,
 			}
 			zones = append(zones, z)
 		}
-		prst = append(prst, Preset{Zones: zones})
+		prst = append(prst, Preset{Generators: gens, Zones: zones})
 	}
 
 	return prst

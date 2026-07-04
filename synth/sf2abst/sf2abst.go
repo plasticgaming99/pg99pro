@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/davecgh/go-spew/spew"
 	sf2raw "github.com/plasticgaming99/pg99pro/synth/sf2"
 	"golang.org/x/image/riff"
 )
@@ -31,7 +30,6 @@ func ParseSF2Abst(rd io.Reader, op *ParseSF2AbstOptions) (SF2Abst, error) {
 	if op == nil {
 		op = NewParseSF2RawOptions()
 	}
-	spew.Dump(op)
 	sf2 := SF2Abst{}
 	fcc, data, err := riff.NewReader(rd)
 	if err != nil {

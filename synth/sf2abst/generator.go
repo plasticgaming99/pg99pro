@@ -1,6 +1,8 @@
 package sf2abst
 
-import "math"
+import (
+	"math"
+)
 
 func MapGenerator(g []Pgen) []Generator {
 	rtGen := make([]Generator, 0)
@@ -220,6 +222,83 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 	return g
 }
 
+func MergeGenerator(pgen Generator, igen Generator) Generator {
+	ik := ParseSFRange(uint16(igen.Etc.KeyRange))
+	pk := ParseSFRange(uint16(pgen.Etc.KeyRange))
+	mergedKeyRange := int16(rangeMinMax{Min: max(ik.Min, pk.Min), Max: min(ik.Max, pk.Max)}.ToUint16())
+	iv := ParseSFRange(uint16(igen.Etc.VelRange))
+	pv := ParseSFRange(uint16(pgen.Etc.VelRange))
+	mergedVelRange := int16(rangeMinMax{Min: max(iv.Min, pv.Min), Max: min(iv.Max, pv.Max)}.ToUint16())
+
+	ret := Generator{
+		Sample: GenSample{
+			StartAddrssOffset:          pgen.Sample.StartAddrssOffset + igen.Sample.StartAddrssOffset,
+			EndAddrsOffset:             pgen.Sample.EndAddrsOffset + igen.Sample.EndAddrsOffset,
+			StartLoopAddrsOffset:       pgen.Sample.StartLoopAddrsOffset + igen.Sample.StartLoopAddrsOffset,
+			EndLoopAddrsOffset:         pgen.Sample.EndLoopAddrsOffset + pgen.Sample.EndLoopAddrsOffset,
+			StartloopAddrsCoarseOffset: pgen.Sample.StartloopAddrsCoarseOffset + igen.Sample.StartloopAddrsCoarseOffset,
+			EndloopAddrsCoarseOffset:   pgen.Sample.EndloopAddrsCoarseOffset + igen.Sample.EndloopAddrsCoarseOffset,
+			CoarseTune:                 pgen.Sample.CoarseTune + igen.Sample.CoarseTune,
+			FineTune:                   pgen.Sample.FineTune + igen.Sample.FineTune,
+			OverridingRootKey:          igen.Sample.OverridingRootKey, // override
+		},
+		Filter: GenFilter{
+			EnvToPitch:          pgen.Filter.EnvToPitch + igen.Filter.EnvToPitch,
+			InitialFilterFc:     pgen.Filter.InitialFilterFc + igen.Filter.InitialFilterFc,
+			InitialFilterQ:      pgen.Filter.InitialFilterQ + igen.Filter.InitialFilterQ,
+			EnvToFilterFc:       pgen.Filter.EnvToFilterFc + igen.Filter.EnvToFilterFc,
+			DelayModEnv:         pgen.Filter.DelayModEnv + igen.Filter.DelayModEnv,
+			AttackModEnv:        pgen.Filter.AttackModEnv + igen.Filter.AttackModEnv,
+			HoldModEnv:          pgen.Filter.HoldModEnv + igen.Filter.HoldModEnv,
+			DecayModEnv:         pgen.Filter.DecayModEnv + igen.Filter.DecayModEnv,
+			SustainModEnv:       pgen.Filter.SustainModEnv + igen.Filter.SustainModEnv,
+			ReleaseModEnv:       pgen.Filter.ReleaseModEnv + igen.Filter.ReleaseModEnv,
+			KeynumToModEnvHold:  pgen.Filter.KeynumToModEnvHold + pgen.Filter.KeynumToModEnvHold,
+			KeynumToModEnvDecay: pgen.Filter.KeynumToModEnvDecay + pgen.Filter.KeynumToModEnvDecay,
+		},
+		Effect: GenEffect{
+			ChorusEffectsSend: pgen.Effect.ChorusEffectsSend + igen.Effect.ChorusEffectsSend,
+			ReverbEffectsSend: pgen.Effect.ReverbEffectsSend + igen.Effect.ReverbEffectsSend,
+		},
+		Wheel: GenWheel{
+			VibLfoToPitch: pgen.Wheel.VibLfoToPitch + igen.Wheel.VibLfoToPitch,
+			DelayVibLfo:   pgen.Wheel.DelayVibLfo + igen.Wheel.DelayVibLfo,
+			FreqVibLfo:    pgen.Wheel.FreqVibLfo + igen.Wheel.FreqVibLfo,
+		},
+		Amp: GenAmp{
+			Pan:                 pgen.Amp.Pan + igen.Amp.Pan,
+			DelayVolEnv:         pgen.Amp.DelayVolEnv + igen.Amp.DelayVolEnv,
+			AttackVolEnv:        pgen.Amp.AttackVolEnv + igen.Amp.AttackVolEnv,
+			HoldVolEnv:          pgen.Amp.HoldVolEnv + igen.Amp.HoldVolEnv,
+			DecayVolEnv:         pgen.Amp.DecayVolEnv + igen.Amp.DecayVolEnv,
+			SustainVolEnv:       pgen.Amp.SustainVolEnv + igen.Amp.SustainVolEnv,
+			ReleaseVolEnv:       pgen.Amp.ReleaseVolEnv + igen.Amp.ReleaseVolEnv,
+			KeynumToVolEnvHold:  pgen.Amp.KeynumToVolEnvHold + igen.Amp.KeynumToVolEnvHold,
+			KeynumToVolEnvDecay: pgen.Amp.KeynumToVolEnvDecay + igen.Amp.KeynumToVolEnvDecay,
+			InitialAttenuation:  pgen.Amp.InitialAttenuation + igen.Amp.InitialAttenuation,
+		},
+		LFO: GenLFO{
+			ModLfoToPitch:    pgen.LFO.ModLfoToPitch + igen.LFO.ModLfoToPitch,
+			ModLfoToFilterFc: pgen.LFO.ModLfoToFilterFc + igen.LFO.ModLfoToFilterFc,
+			ModLfoToVolume:   pgen.LFO.ModLfoToVolume + igen.LFO.ModLfoToVolume,
+			DelayMod:         pgen.LFO.DelayMod + igen.LFO.DelayMod,
+			FreqMod:          pgen.LFO.FreqMod + igen.LFO.FreqMod,
+		},
+		Etc: GenEtc{
+			Instrument:     pgen.Etc.Instrument,
+			KeyRange:       mergedKeyRange,
+			VelRange:       mergedVelRange,
+			Keynum:         igen.Etc.Keynum,
+			Velocity:       igen.Etc.Velocity,
+			SampleID:       igen.Etc.SampleID,
+			SampleModes:    igen.Etc.SampleModes,
+			ScaleTuning:    igen.Etc.ScaleTuning,
+			ExclusiveClass: igen.Etc.ExclusiveClass,
+		},
+	}
+	return ret
+}
+
 type Generator struct {
 	Sample GenSample
 	Filter GenFilter
@@ -235,6 +314,8 @@ type GenSample struct {
 	EndAddrsOffset             int16 // end offset(sample)
 	StartLoopAddrsOffset       int16 // loop start offset(sample)
 	EndLoopAddrsOffset         int16 // loop end offset(sample)
+	StartAddrsCoarseOffset     int16 // (32000 sample)
+	EndAddrsCoarseOffset       int16 // (32000 sample)
 	StartloopAddrsCoarseOffset int16 //
 	EndloopAddrsCoarseOffset   int16 //
 	CoarseTune                 int16 // half-note tune
@@ -315,12 +396,14 @@ type GeneratorParam struct {
 func (g Generator) ToParam() GeneratorParam {
 	gp := GeneratorParam{
 		Sample: SampleParam{
-			StartAddrssOffset:    g.Sample.StartAddrssOffset,
-			EndAddrsOffset:       g.Sample.EndAddrsOffset,
-			StartLoopAddrsOffset: g.Sample.StartLoopAddrsOffset,
-			EndLoopAddrsOffset:   g.Sample.EndLoopAddrsOffset,
-			CoarseTune:           float32(g.Sample.CoarseTune) / 10,
-			FineTune:             g.Sample.FineTune,
+			StartAddrssOffset:      g.Sample.StartAddrssOffset,
+			EndAddrsOffset:         g.Sample.EndAddrsOffset,
+			StartAddrsCoarseOffset: g.Sample.StartAddrsCoarseOffset,
+			EndAddrsCoarseOffset:   g.Sample.EndAddrsCoarseOffset,
+			StartLoopAddrsOffset:   g.Sample.StartLoopAddrsOffset,
+			EndLoopAddrsOffset:     g.Sample.EndLoopAddrsOffset,
+			CoarseTune:             float32(g.Sample.CoarseTune) / 10,
+			FineTune:               g.Sample.FineTune,
 		},
 		Filter: FilterParam{
 			EnvToPitch:          g.Filter.EnvToPitch / 100,
@@ -391,8 +474,8 @@ type SampleParam struct {
 	EndAddrsOffset         int16   // (sample) end offset
 	StartLoopAddrsOffset   int16   // (32000 sample) loop start offset(sample)
 	EndLoopAddrsOffset     int16   // (sample) loop end offset
-	StartAddrsCoarseOffset int16   // (32000 sample)
-	EndAddrsCoarseOffset   int16   // (32000 sample)
+	StartAddrsCoarseOffset int16   // (32k sample)
+	EndAddrsCoarseOffset   int16   // (32k sample)
 	CoarseTune             float32 // half-note tune
 	FineTune               int16   // (cent) tune
 	OverridingRootKey      int16   // root key overriding
@@ -471,4 +554,9 @@ func ParseSFRange(u uint16) rangeMinMax {
 	rt.Min = uint8(u & 0x00FF)
 	rt.Max = uint8(u >> 8)
 	return rt
+}
+
+func (r rangeMinMax) ToUint16() uint16 {
+	u := uint16(uint16(r.Min) | uint16(r.Max)<<8)
+	return u
 }

@@ -30,8 +30,8 @@ func NewGenerator() Generator {
 			EndAddrsOffset:             0,
 			StartLoopAddrsOffset:       0,
 			EndLoopAddrsOffset:         0,
-			StartloopAddrsCoarseOffset: 0,
-			EndloopAddrsCoarseOffset:   0,
+			StartLoopAddrsCoarseOffset: 0,
+			EndLoopAddrsCoarseOffset:   0,
 			CoarseTune:                 0,
 			FineTune:                   0,
 			OverridingRootKey:          -1,
@@ -75,8 +75,8 @@ func NewGenerator() Generator {
 		},
 		Etc: GenEtc{
 			Instrument:     -1,
-			KeyRange:       32512, // 0-127
-			VelRange:       32512, // 0-127
+			KeyRange:       0x7F00, // 0-127
+			VelRange:       0x7F00, // 0-127
 			Keynum:         -1,
 			Velocity:       -1,
 			SampleID:       -1,
@@ -104,7 +104,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_endloopAddrsOffset:
 			g.Sample.EndLoopAddrsOffset += p[i].GenAmount
 		case Op_startAddrsCoarseOffset:
-			g.Sample.StartloopAddrsCoarseOffset += p[i].GenAmount
+			g.Sample.StartLoopAddrsCoarseOffset += p[i].GenAmount
 		case Op_modLfoToPitch:
 			g.LFO.ModLfoToPitch += p[i].GenAmount
 		case Op_vibLfoToPitch:
@@ -120,7 +120,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_modEnvToFilterFc:
 			g.Filter.EnvToFilterFc += p[i].GenAmount
 		case Op_endAddrsCoarseOffset:
-			g.Sample.EndloopAddrsCoarseOffset += p[i].GenAmount
+			g.Sample.EndLoopAddrsCoarseOffset += p[i].GenAmount
 		case Op_modLfoToVolume:
 			g.LFO.ModLfoToVolume += p[i].GenAmount
 		case Op_unused1:
@@ -128,7 +128,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_chorusEffectsSend:
 			g.Effect.ChorusEffectsSend += p[i].GenAmount
 		case Op_reverbEffectsSend:
-			g.Effect.ChorusEffectsSend += p[i].GenAmount
+			g.Effect.ReverbEffectsSend += p[i].GenAmount
 		case Op_pan:
 			g.Amp.Pan += p[i].GenAmount
 		case Op_unused2:
@@ -162,13 +162,13 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_keynumToModEnvDecay:
 			g.Filter.KeynumToModEnvDecay += p[i].GenAmount
 		case Op_delayVolEnv:
-			g.Amp.DecayVolEnv += p[i].GenAmount
+			g.Amp.DelayVolEnv += p[i].GenAmount
 		case Op_attackVolEnv:
 			g.Amp.AttackVolEnv += p[i].GenAmount
 		case Op_holdVolEnv:
 			g.Amp.HoldVolEnv += p[i].GenAmount
 		case Op_decayVolEnv:
-			g.Amp.DelayVolEnv += p[i].GenAmount
+			g.Amp.DecayVolEnv += p[i].GenAmount
 		case Op_sustainVolEnv:
 			g.Amp.SustainVolEnv += p[i].GenAmount
 		case Op_releaseVolEnv:
@@ -182,11 +182,11 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_reserved1:
 			// unused
 		case Op_keyRange:
-			g.Etc.KeyRange = p[i].GenAmount
+			g.Etc.KeyRange = uint16(p[i].GenAmount)
 		case Op_velRange:
-			g.Etc.VelRange = p[i].GenAmount
+			g.Etc.VelRange = uint16(p[i].GenAmount)
 		case Op_startloopAddrsCoarseOffset:
-			g.Sample.StartloopAddrsCoarseOffset += p[i].GenAmount
+			g.Sample.StartLoopAddrsCoarseOffset += p[i].GenAmount
 		case Op_keynum:
 			g.Etc.Keynum = p[i].GenAmount
 		case Op_velocity:
@@ -196,7 +196,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_reserved2:
 			// unused
 		case Op_endloopAddrsCoarseOffset:
-			g.Sample.EndLoopAddrsOffset += p[i].GenAmount
+			g.Sample.EndLoopAddrsCoarseOffset += p[i].GenAmount
 		case Op_coarseTune:
 			g.Sample.CoarseTune += p[i].GenAmount
 		case Op_fineTune:
@@ -208,7 +208,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_reserved3:
 			// unused
 		case Op_scaleTuning:
-			g.Etc.ScaleTuning += p[i].GenAmount
+			g.Etc.ScaleTuning = p[i].GenAmount
 		case Op_exclusiveClass:
 			g.Etc.ExclusiveClass = p[i].GenAmount
 		case Op_overridingRootKey:
@@ -223,12 +223,16 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 }
 
 func MergeGenerator(pgen Generator, igen Generator) Generator {
-	ik := ParseSFRange(uint16(igen.Etc.KeyRange))
-	pk := ParseSFRange(uint16(pgen.Etc.KeyRange))
-	mergedKeyRange := int16(rangeMinMax{Min: max(ik.Min, pk.Min), Max: min(ik.Max, pk.Max)}.ToUint16())
-	iv := ParseSFRange(uint16(igen.Etc.VelRange))
-	pv := ParseSFRange(uint16(pgen.Etc.VelRange))
-	mergedVelRange := int16(rangeMinMax{Min: max(iv.Min, pv.Min), Max: min(iv.Max, pv.Max)}.ToUint16())
+	//ik := ParseSFRange(igen.Etc.KeyRange)
+	//pk := ParseSFRange(pgen.Etc.KeyRange)
+	//fmt.Println("before:", ik, pk)
+	//mergedKeyRange := rangeMinMax{Min: max(ik.Min, pk.Min), Max: min(ik.Max, pk.Max)}.ToUint16()
+	//fmt.Println("after:", ParseSFRange(mergedKeyRange))
+	//iv := ParseSFRange(igen.Etc.VelRange)
+	//pv := ParseSFRange(pgen.Etc.VelRange)
+	//fmt.Println("before:", iv, pv)
+	//mergedVelRange := rangeMinMax{Min: max(iv.Min, pv.Min), Max: min(iv.Max, pv.Max)}.ToUint16()
+	//fmt.Println("after:", ParseSFRange(mergedVelRange))
 
 	ret := Generator{
 		Sample: GenSample{
@@ -236,8 +240,8 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 			EndAddrsOffset:             pgen.Sample.EndAddrsOffset + igen.Sample.EndAddrsOffset,
 			StartLoopAddrsOffset:       pgen.Sample.StartLoopAddrsOffset + igen.Sample.StartLoopAddrsOffset,
 			EndLoopAddrsOffset:         pgen.Sample.EndLoopAddrsOffset + pgen.Sample.EndLoopAddrsOffset,
-			StartloopAddrsCoarseOffset: pgen.Sample.StartloopAddrsCoarseOffset + igen.Sample.StartloopAddrsCoarseOffset,
-			EndloopAddrsCoarseOffset:   pgen.Sample.EndloopAddrsCoarseOffset + igen.Sample.EndloopAddrsCoarseOffset,
+			StartLoopAddrsCoarseOffset: pgen.Sample.StartLoopAddrsCoarseOffset + igen.Sample.StartLoopAddrsCoarseOffset,
+			EndLoopAddrsCoarseOffset:   pgen.Sample.EndLoopAddrsCoarseOffset + igen.Sample.EndLoopAddrsCoarseOffset,
 			CoarseTune:                 pgen.Sample.CoarseTune + igen.Sample.CoarseTune,
 			FineTune:                   pgen.Sample.FineTune + igen.Sample.FineTune,
 			OverridingRootKey:          igen.Sample.OverridingRootKey, // override
@@ -285,9 +289,9 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 			FreqMod:          pgen.LFO.FreqMod + igen.LFO.FreqMod,
 		},
 		Etc: GenEtc{
-			Instrument:     pgen.Etc.Instrument,
-			KeyRange:       mergedKeyRange,
-			VelRange:       mergedVelRange,
+			Instrument: pgen.Etc.Instrument,
+			KeyRange:/*mergedKeyRange*/ igen.Etc.KeyRange,
+			VelRange:/*mergedVelRange*/ igen.Etc.VelRange,
 			Keynum:         igen.Etc.Keynum,
 			Velocity:       igen.Etc.Velocity,
 			SampleID:       igen.Etc.SampleID,
@@ -316,8 +320,8 @@ type GenSample struct {
 	EndLoopAddrsOffset         int16 // loop end offset(sample)
 	StartAddrsCoarseOffset     int16 // (32000 sample)
 	EndAddrsCoarseOffset       int16 // (32000 sample)
-	StartloopAddrsCoarseOffset int16 //
-	EndloopAddrsCoarseOffset   int16 //
+	StartLoopAddrsCoarseOffset int16 //
+	EndLoopAddrsCoarseOffset   int16 //
 	CoarseTune                 int16 // half-note tune
 	FineTune                   int16 // cent tune
 	OverridingRootKey          int16 // root key overriding
@@ -371,15 +375,15 @@ type GenLFO struct {
 }
 
 type GenEtc struct {
-	Instrument     int16 // instrument
-	KeyRange       int16 // key range
-	VelRange       int16 // vel range
-	Keynum         int16 // force keynum
-	Velocity       int16 // force velocity
-	SampleID       int16 // sample id
-	SampleModes    int16 // loop
-	ScaleTuning    int16 // cent per key++
-	ExclusiveClass int16 // one sound per time
+	Instrument     int16  // instrument
+	KeyRange       uint16 // key range
+	VelRange       uint16 // vel range
+	Keynum         int16  // force keynum
+	Velocity       int16  // force velocity
+	SampleID       int16  // sample id
+	SampleModes    int16  // loop
+	ScaleTuning    int16  // cent per key++
+	ExclusiveClass int16  // one sound per time
 }
 
 // Param
@@ -455,6 +459,7 @@ func (g Generator) ToParam() GeneratorParam {
 			Velocity:       g.Etc.Velocity,
 			SampleID:       g.Etc.SampleID,
 			SampleModes:    g.Etc.SampleModes,
+			ScaleTuning:    g.Etc.ScaleTuning,
 			ExclusiveClass: g.Etc.ExclusiveClass,
 		},
 	}

@@ -67,6 +67,10 @@ func PresetFromSF2Abst(s *SF2Abst) []Preset {
 			}
 			zones = append(zones, z)
 		}
+		/*if s.Pdta.Phdr[i].Bank == 0 && s.Pdta.Phdr[i].PresetNo == 0 {
+			fmt.Println("gens", len(gens))
+			spew.Dump(zones)
+		}*/
 		prst = append(prst, Preset{Generators: gens, Zones: zones})
 	}
 

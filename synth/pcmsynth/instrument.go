@@ -19,12 +19,16 @@ func (ins *Instrument) GetVoice(key, vel int) []*Voice {
 			uint8(key) <= uint8(ins.IVoices[i].keyMax) &&
 			uint8(ins.IVoices[i].velMin) <= uint8(vel) &&
 			uint8(vel) <= uint8(ins.IVoices[i].velMax) {
-			fmt.Println("-- voiceavailable")
+
+			//fmt.Println("-- voiceavailable")
 			newvoice := &Voice{}
 			*newvoice = *ins.IVoices[i].voice
 			newvoice.key = key
 			newvoice.vel = vel
-			newvoice.baseStep = calcStep(uint8(key), ins.IVoices[i].voice.voice.OriginalKey)
+			newvoice.baseStep = float64(uint8(key)-newvoice.voice.OriginalKey) * float64(newvoice.generator.Etc.ScaleTuning)
+			newvoice.baseStep += float64(newvoice.generator.Sample.CoarseTune) * 100
+			newvoice.baseStep += float64(newvoice.generator.Sample.FineTune)
+			newvoice.baseStep = math.Exp2(newvoice.baseStep / 1200)
 			newvoice.step = newvoice.baseStep
 			vs = append(vs, newvoice)
 		}
@@ -34,11 +38,17 @@ func (ins *Instrument) GetVoice(key, vel int) []*Voice {
 
 func calcStep(key, original uint8) float64 {
 	semitone := float64(int(key) - int(original))
-	pitch := math.Pow(2.0, semitone/12.0)
+	pitch := math.Exp2(semitone / 1200.0)
 	return pitch
 }
 
+func StepToCent(key, original uint8) float64 {
+	cents := float64(int(key)-int(original)) * 100
+	return cents
+}
+
 type Instrument struct {
+	Name          string
 	ProgramNumber int
 	IVoices       []instrumentVoice
 }
@@ -49,14 +59,22 @@ type instrumentVoice struct {
 	voice          *Voice
 }
 
+func (i *instrumentVoice) Dump() (s string) {
+	s += fmt.Sprintln("keyMin:", i.keyMin, "keyMax:", i.keyMax)
+	s += fmt.Sprintln("velMin:", i.velMin, "velMax:", i.velMax)
+	s += fmt.Sprintln(i.voice.generator.Etc.KeyRange)
+	s += fmt.Sprintln(i.voice.generator.Etc.VelRange)
+	return
+}
+
 func PackInst(msb, lsb, prog uint8) uint32 {
-	return uint32(msb&0x7F)<<14 | uint32(lsb&0x7F)<<7 | uint32(prog&0x7F)
+	return uint32(msb)<<16 | uint32(lsb)<<8 | uint32(prog)
 }
 
 func UnpackInst(u uint32) (msb, lsb, prog uint8) {
-	prog = uint8(u & 0x7F)
-	lsb = uint8((u >> 7) & 0x7F)
-	msb = uint8((u >> 14) & 0x7F)
+	prog = uint8(u)
+	lsb = uint8(u >> 8)
+	msb = uint8(u >> 16)
 	return
 }
 
@@ -69,17 +87,28 @@ func NewInstruments(s2 *sf2abst.SF2Abst, voices []VoiceSample) map[uint32]*Instr
 
 	for i := range presets {
 		pgens := presets[i].Generators
+		fmt.Println("process", i)
 		for ii := range pgens {
 			if pgens[ii].Etc.Instrument == -1 {
 				fmt.Println(" omgg   ---", ii)
 				spew.Dump(pgens[ii])
 				continue
 			}
+
+			/*fmt.Printf("Bank=%d Program=%d\n",
+				s2.Pdta.Phdr[i].Bank,
+				s2.Pdta.Phdr[i].PresetNo,
+			)*/
+
 			igens := insts[pgens[ii].Etc.Instrument].Generators
 			mIgenParams := make([]sf2abst.GeneratorParam, 0, len(igens))
 			for iii := range igens {
 				mg := sf2abst.MergeGenerator(pgens[ii], igens[iii])
+				if s2.Pdta.Phdr[i].PresetNo == 0 && s2.Pdta.Phdr[i].Bank == 0 {
+					//spew.Dump(pgens[iii].ToParam())
+				}
 				mIgenParams = append(mIgenParams, mg.ToParam())
+				//mIgenParams = append(mIgenParams, igens[iii].ToParam())
 			}
 
 			ivs := make([]instrumentVoice, 0, len(mIgenParams))
@@ -89,19 +118,21 @@ func NewInstruments(s2 *sf2abst.SF2Abst, voices []VoiceSample) map[uint32]*Instr
 				iv.keyMin = mIgenParams[iii].Etc.KeyRange.Min
 				iv.velMax = mIgenParams[iii].Etc.VelRange.Max
 				iv.velMin = mIgenParams[iii].Etc.VelRange.Min
-				iv.voice = &Voice{
-					voice:     &voices[iii],
-					generator: &mIgenParams[iii],
+				v := VoiceSample{}
+				if mIgenParams[iii].Etc.SampleID == -1 {
+					continue
 				}
+				v = voices[mIgenParams[iii].Etc.SampleID]
+				iv.voice = NewVoice(&v, &mIgenParams[iii])
 				ivs = append(ivs, iv)
 			}
 
 			in := Instrument{
+				Name:          s2.Pdta.Phdr[i].Name,
 				ProgramNumber: int(s2.Pdta.Phdr[i].PresetNo),
 				IVoices:       ivs,
 			}
-
-			pk := PackInst(0, uint8(s2.Pdta.Phdr[i].Bank), uint8(s2.Pdta.Phdr[i].PresetNo))
+			pk := PackInst(uint8(s2.Pdta.Phdr[i].Bank), uint8(s2.Pdta.Phdr[i].Bank>>8), uint8(s2.Pdta.Phdr[i].PresetNo))
 			rt[pk] = &in
 		}
 	}

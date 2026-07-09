@@ -17,29 +17,6 @@ import (
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv"
 )
 
-type eventType int
-
-const (
-	evTypeProgramChange = eventType(iota)
-	evTypeControlChange
-	evTypeSysEx
-	evTypeNoteOn
-	evTypeNoteOff
-	evTypePitchBend
-)
-
-type midiEv struct {
-	evType  eventType
-	channel uint8
-	key     uint8
-	vel     uint8
-	prog    uint8
-	ctrl    uint8
-	ccval   uint8
-	bendval int16
-	sysEx   []byte
-}
-
 func Execute(args []string) {
 	f, err := os.Open(args[0])
 	defer f.Close()
@@ -104,10 +81,15 @@ func Execute(args []string) {
 		log.Fatal(err)
 	}
 
-	insts := pcmsynth.NewInstruments(&sf2, v)
-	synth := pcmsynth.NewPCMSynth(insts)
+	evQueue := make(chan pcmsynth.MidiEv, 1024)
 
-	evQueue := make(chan midiEv)
+	insts := pcmsynth.NewInstruments(&sf2, v)
+	synth := pcmsynth.NewPCMSynth(insts, evQueue)
+
+	/*for v, ins := range insts {
+		fmt.Println(ins.ProgramNumber)
+		fmt.Println(pcmsynth.UnpackInst(v))
+	}*/
 
 	const gm, gs, xg = 0, 1, 2
 	midimode := gm
@@ -121,10 +103,10 @@ func Execute(args []string) {
 			case msg.GetProgramChange(&ch, &pg):
 				fmt.Printf("got programchange on channel %v with program %v\n", ch, pg)
 				//synth.ProgramChange(int(ch), pg)
-				evQueue <- midiEv{
-					evType:  evTypeProgramChange,
-					channel: ch,
-					prog:    pg,
+				evQueue <- pcmsynth.MidiEv{
+					EvType:  pcmsynth.EvTypeProgramChange,
+					Channel: ch,
+					Prog:    pg,
 				}
 				switch midimode {
 				case gm:
@@ -136,49 +118,49 @@ func Execute(args []string) {
 				}
 			case msg.GetControlChange(&ch, &ctrl, &val):
 				fmt.Printf("got %s on channel %v with value %v\n", midi.ControlChangeName[ctrl], ch, val)
-				evQueue <- midiEv{
-					evType:  evTypeControlChange,
-					channel: ch,
-					ctrl:    ctrl,
-					ccval:   val,
+				evQueue <- pcmsynth.MidiEv{
+					EvType:  pcmsynth.EvTypeControlChange,
+					Channel: ch,
+					Ctrl:    ctrl,
+					CCval:   val,
 				}
 			case msg.GetSysEx(&bt):
 				fmt.Printf("got sysex: %X\n", bt)
 				btnew := make([]byte, len(bt))
 				copy(btnew, bt)
 
-				evQueue <- midiEv{
-					evType: evTypeSysEx,
-					sysEx:  btnew,
+				evQueue <- pcmsynth.MidiEv{
+					EvType: pcmsynth.EvTypeSysEx,
+					SysEx:  btnew,
 				}
 			case msg.GetNoteOn(&ch, &key, &vel):
 				if vel != 0 {
-					evQueue <- midiEv{
-						evType:  evTypeNoteOn,
-						channel: ch,
-						key:     key,
-						vel:     vel,
+					evQueue <- pcmsynth.MidiEv{
+						EvType:  pcmsynth.EvTypeNoteOn,
+						Channel: ch,
+						Key:     key,
+						Vel:     vel,
 					}
-					fmt.Printf("got noteon %s on channel %v with velocity %v\n", midi.Note(key), ch, vel)
+					fmt.Printf("got noteon %s (key %v) on channel %v with velocity %v\n", midi.Note(key), key, ch, vel)
 				} else {
-					evQueue <- midiEv{
-						evType:  evTypeNoteOff,
-						channel: ch,
-						key:     key,
+					evQueue <- pcmsynth.MidiEv{
+						EvType:  pcmsynth.EvTypeNoteOff,
+						Channel: ch,
+						Key:     key,
 					}
-					fmt.Printf("got noteoff %s on channel %v\n", midi.Note(key), ch)
+					fmt.Printf("got noteoff %s (key %v) on channel %v\n", midi.Note(key), key, ch)
 				}
 			case msg.GetNoteOff(&ch, &key, nil):
-				evQueue <- midiEv{
-					evType:  evTypeNoteOff,
-					channel: ch,
-					key:     key,
+				evQueue <- pcmsynth.MidiEv{
+					EvType:  pcmsynth.EvTypeNoteOff,
+					Channel: ch,
+					Key:     key,
 				}
-				fmt.Printf("got noteoff %s on channel %v\n", midi.Note(key), ch)
+				fmt.Printf("got noteoff %s (key %v) on channel %v\n", midi.Note(key), key, ch)
 			case msg.GetPitchBend(&ch, &bend, nil):
-				evQueue <- midiEv{
-					evType:  evTypePitchBend,
-					bendval: bend,
+				evQueue <- pcmsynth.MidiEv{
+					EvType:  pcmsynth.EvTypePitchBend,
+					Bendval: bend,
 				}
 				fmt.Printf("got pitchbend on %v and bend %v\n", ch, bend)
 			default:
@@ -192,41 +174,17 @@ func Execute(args []string) {
 
 	fmt.Println("successfly read soundfont")
 
-	ins := synth.Instruments[pcmsynth.PackInst(0, 0, 0)]
-	for i := 0; i < len(ins.IVoices); i++ {
-		fmt.Printf("ins.IVoices[%v]: %v\n", i, ins.IVoices[i])
-	}
+	//ins := synth.Instruments[pcmsynth.PackInst(0, 0, 0)]
+	//fmt.Println(len(ins.IVoices))
+	//fmt.Println(ins.ProgramNumber)
+	/*for i := 0; i < len(ins.IVoices); i++ {
+		fmt.Print(ins.IVoices[i].Dump())
+	}*/
 
 	br := pcmsynth.NewFloat32ToByteReader(synth, pcmsynth.BitrateSignedInt16LE, 512)
 	otop := otoCtx.NewPlayer(&br)
 	otop.SetBufferSize(128)
 	otop.Play()
-
-	go func() {
-		for ev := range evQueue {
-			switch ev.evType {
-			case evTypeProgramChange:
-				if ev.channel == 9 {
-					synth.BankSelectMSB(int(ev.channel), 128)
-				}
-				synth.ProgramChange(int(ev.channel), ev.prog)
-			case evTypeNoteOn:
-				synth.NoteOn(int(ev.channel), int(ev.key), int(ev.vel))
-			case evTypeNoteOff:
-				synth.NoteOff(int(ev.channel), int(ev.key))
-			case evTypeControlChange:
-				switch ev.ctrl {
-				case midi.BankSelectMSB:
-					synth.BankSelectMSB(int(ev.channel), ev.ccval)
-				case midi.BankSelectLSB:
-					synth.BankSelectLSB(int(ev.channel), ev.ccval)
-				}
-			case evTypeSysEx:
-				continue
-
-			}
-		}
-	}()
 
 	go func() {
 		<-sig

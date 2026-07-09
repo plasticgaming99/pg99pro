@@ -31,13 +31,18 @@ func NewMIDIChannel(pc *PCMSynth) (syn MIDIChannel) {
 }
 
 func (syn *MIDIChannel) InitializeChannel() {
+	syn.PartLevel(100)
 	syn.BankSelectMSB(0)
 	syn.BankSelectLSB(0)
 	syn.ProgramChange(0)
 }
 
 func (syn *MIDIChannel) NoteOn(key int, vel int) {
-	syn.voices = append(syn.voices, syn.instrument.GetVoice(key, vel)...)
+	v := syn.instrument.GetVoice(key, vel)
+	/*if len(v) > 0 {
+		fmt.Println(v[0].voice.Name)
+	}*/
+	syn.voices = append(syn.voices, v...)
 }
 
 func (syn *MIDIChannel) NoteOff(key int) {
@@ -58,6 +63,13 @@ func (syn *MIDIChannel) Expression(exp int) {
 
 }
 
+func (syn *MIDIChannel) PartLevel(lvl int) {
+	if lvl < 0 && 127 < lvl {
+		return
+	}
+	syn.level = lvl
+}
+
 func (syn *MIDIChannel) BankSelectMSB(msb uint8) {
 	syn.bankMSB = msb
 }
@@ -67,7 +79,11 @@ func (syn *MIDIChannel) BankSelectLSB(lsb uint8) {
 }
 
 func (syn *MIDIChannel) ProgramChange(program uint8) {
+	//fmt.Println("msb:", syn.bankMSB, "lsb:", syn.bankLSB, "prog:", program)
 	syn.instrument = GetInstrument(syn.pcmsynth.Instruments, syn.bankMSB, syn.bankLSB, program)
+	/*for _, v := range syn.instrument.IVoices {
+		fmt.Println(v.voice.generator.Etc.KeyRange)
+	}*/
 }
 
 func (syn *MIDIChannel) ReadFloat32(f32 []float32) (n int, err error) {
@@ -80,7 +96,7 @@ func (syn *MIDIChannel) ReadFloat32(f32 []float32) (n int, err error) {
 			continue
 		}
 		for i2 := range tmp {
-			f32[i2] += tmp[i2]
+			f32[i2] += tmp[i2] * (float32(syn.level) / 127)
 		}
 	}
 	for i, vi := range delvoice {

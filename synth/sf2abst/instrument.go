@@ -10,6 +10,9 @@ func PresetToGenerators(index int, sf2 SF2Abst) []Generator {
 	if index+1 < len(sf2.Pdta.Phdr) {
 		end = int(sf2.Pdta.Phdr[index+1].BagIndex)
 	}
+	/*if sf2.Pdta.Phdr[index].PresetNo == 0 {
+		fmt.Printf("Preset0 start=%d end=%d\n", start, end)
+	}*/
 
 	global := NewGenerator()
 	localStart := start
@@ -26,6 +29,10 @@ func PresetToGenerators(index int, sf2 SF2Abst) []Generator {
 		if i+1 < len(sf2.Pdta.Pbag) {
 			ngi = int(sf2.Pdta.Pbag[i+1].GenIndex)
 		}
+		/*if sf2.Pdta.Phdr[index].PresetNo == 0 {
+			fmt.Printf("generator count=%d\n", ngi-gi)
+			fmt.Printf("bag=%d gen=%d next=%d\n", i, gi, ngi)
+		}*/
 
 		if gi >= ngi {
 			continue

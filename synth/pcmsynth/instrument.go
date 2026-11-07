@@ -149,18 +149,20 @@ func NewInstruments(s2 *sf2abst.SF2Abst, voices []VoiceSample) map[uint32]*Instr
 					continue
 				}
 				sampleID := int(mIgenParams[iii].Etc.SampleID)
-				v = voices[sampleID]
-				if v.SampleType&0x7fff == sf2abst.SampleTypeStereoRight {
-					leftID := int(v.SampleLink)
-					if leftID >= 0 && leftID < len(voices) && voices[leftID].SampleType&0x7fff == sf2abst.SampleTypeStereoLeft {
-						v = voices[leftID]
-					}
+				if sampleID < 0 || sampleID >= len(voices) {
+					continue
 				}
-				if v.ShdrOrigin >= 0 && v.ShdrOrigin < len(s2.Pdta.Shdr) {
-					applyGeneratorSampleOffsets(&v, mIgenParams[iii].Sample, s2.Pdta.Shdr[v.ShdrOrigin].SampleRate)
+				left, right, stereo := linkedStereoSamples(voices, sampleID)
+				if stereo {
+					left.StereoSide = -1
+					right.StereoSide = 1
+					appendInstrumentVoice(&ivs, iv, left, &mIgenParams[iii], s2)
+					appendInstrumentVoice(&ivs, iv, right, &mIgenParams[iii], s2)
+				} else {
+					v = voices[sampleID]
+					v.StereoSide = 0
+					appendInstrumentVoice(&ivs, iv, v, &mIgenParams[iii], s2)
 				}
-				iv.voice = NewVoice(&v, &mIgenParams[iii])
-				ivs = append(ivs, iv)
 			}
 
 			pk := PackInst(uint8(s2.Pdta.Phdr[i].Bank), uint8(s2.Pdta.Phdr[i].Bank>>8), uint8(s2.Pdta.Phdr[i].PresetNo))
@@ -177,6 +179,39 @@ func NewInstruments(s2 *sf2abst.SF2Abst, voices []VoiceSample) map[uint32]*Instr
 	}
 
 	return rt
+}
+
+func linkedStereoSamples(voices []VoiceSample, sampleID int) (left, right VoiceSample, ok bool) {
+	if sampleID < 0 || sampleID >= len(voices) {
+		return VoiceSample{}, VoiceSample{}, false
+	}
+	sample := voices[sampleID]
+	switch sample.SampleType & 0x7fff {
+	case sf2abst.SampleTypeStereoLeft:
+		partnerID := int(sample.SampleLink)
+		if partnerID < 0 || partnerID >= len(voices) ||
+			voices[partnerID].SampleType&0x7fff != sf2abst.SampleTypeStereoRight {
+			return VoiceSample{}, VoiceSample{}, false
+		}
+		return sample, voices[partnerID], true
+	case sf2abst.SampleTypeStereoRight:
+		partnerID := int(sample.SampleLink)
+		if partnerID < 0 || partnerID >= len(voices) ||
+			voices[partnerID].SampleType&0x7fff != sf2abst.SampleTypeStereoLeft {
+			return VoiceSample{}, VoiceSample{}, false
+		}
+		return voices[partnerID], sample, true
+	default:
+		return VoiceSample{}, VoiceSample{}, false
+	}
+}
+
+func appendInstrumentVoice(voices *[]instrumentVoice, base instrumentVoice, sample VoiceSample, generator *sf2abst.GeneratorParam, sf2 *sf2abst.SF2Abst) {
+	if sample.ShdrOrigin >= 0 && sample.ShdrOrigin < len(sf2.Pdta.Shdr) {
+		applyGeneratorSampleOffsets(&sample, generator.Sample, sf2.Pdta.Shdr[sample.ShdrOrigin].SampleRate)
+	}
+	base.voice = NewVoice(&sample, generator)
+	*voices = append(*voices, base)
 }
 
 func applyGeneratorSampleOffsets(v *VoiceSample, p sf2abst.SampleParam, sourceRate uint32) {
@@ -207,11 +242,6 @@ func applyGeneratorSampleOffsets(v *VoiceSample, p sf2abst.SampleParam, sourceRa
 	}
 	oldLoopStart, oldLoopEnd := int(v.LoopStart), int(v.LoopEnd)
 	v.Sample = v.Sample[start:end]
-	if len(v.RightSample) >= end {
-		v.RightSample = v.RightSample[start:end]
-	} else {
-		v.RightSample = nil
-	}
 	loopStart := oldLoopStart + loopStartAdjustment - start
 	loopEnd := oldLoopEnd + loopEndAdjustment - start
 	if loopStart < 0 {

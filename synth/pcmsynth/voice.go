@@ -26,8 +26,8 @@ func SmplToFloat32(smpl int16) float32 {
 type VoiceSample struct {
 	Name        string
 	SampleType  sf2abst.SampleType
-	Sample      []float32 // left/mono sample
-	RightSample []float32 // right channel for linked stereo samples
+	Sample      []float32 // one mono sample; linked stereo pairs become two voices
+	StereoSide  int8 // -1 for the linked left sample, +1 for right, 0 for mono
 	SampleRate  uint32
 	LoopStart   uint32
 	LoopEnd     uint32
@@ -131,20 +131,6 @@ func GenerateVoiceSamples(sf2 *sf2abst.SF2Abst, op *GenerateVoicesOptions, sf2Fi
 		voice.Sample = sample
 
 		voices = append(voices, voice)
-	}
-
-	// SoundFont stereo samples are stored as linked left/right sample headers.
-	// Attach the right channel to the left sample so an instrument zone creates
-	// one stereo voice rather than two separately-triggered voices.
-	for i := range voices {
-		if voices[i].SampleType&0x7fff != sf2abst.SampleTypeStereoLeft {
-			continue
-		}
-		rightIndex := int(voices[i].SampleLink)
-		if rightIndex >= 0 && rightIndex < len(voices) &&
-			voices[rightIndex].SampleType&0x7fff == sf2abst.SampleTypeStereoRight {
-			voices[i].RightSample = voices[rightIndex].Sample
-		}
 	}
 
 	return voices, nil

@@ -215,20 +215,13 @@ func (v *Voice) ReadFloat32Stereo(left, right []float32) (n int, err error) {
 		} else if nextIndex >= len(v.voice.Sample) {
 			nextIndex = index
 		}
-		sampleL := v.voice.Sample[index]
+		sample := v.voice.Sample[index]
 		if v.interpolationEnabled {
-			sampleL = lerp(sampleL, v.voice.Sample[nextIndex], fraction)
-		}
-		sampleR := sampleL
-		if len(v.voice.RightSample) == len(v.voice.Sample) {
-			sampleR = v.voice.RightSample[index]
-			if v.interpolationEnabled {
-				sampleR = lerp(sampleR, v.voice.RightSample[nextIndex], fraction)
-			}
+			sample = lerp(sample, v.voice.Sample[nextIndex], fraction)
 		}
 		level := voiceLevel * envelope
-		left[i] = sampleL * level * leftGain
-		right[i] = sampleR * level * rightGain
+		left[i] = sample * level * leftGain
+		right[i] = sample * level * rightGain
 		v.currentStep += v.step
 		n++
 	}
@@ -447,9 +440,12 @@ func (v *Voice) panGains() (float32, float32) {
 	} else if panIndex > 127 {
 		panIndex = 127
 	}
-	if len(v.voice.RightSample) == len(v.voice.Sample) {
+	if v.voice.StereoSide != 0 {
 		gains := stereoPanTable[panIndex]
-		return gains.left, gains.right
+		if v.voice.StereoSide < 0 {
+			return gains.left, 0
+		}
+		return 0, gains.right
 	}
 	gains := monoPanTable[panIndex]
 	return gains.left, gains.right

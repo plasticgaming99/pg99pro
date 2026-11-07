@@ -87,6 +87,39 @@ func NewGenerator() Generator {
 	}
 }
 
+const (
+	ampDelaySet uint8 = 1 << iota
+	ampAttackSet
+	ampHoldSet
+	ampDecaySet
+	ampReleaseSet
+)
+
+const (
+	modDelaySet uint8 = 1 << iota
+	modAttackSet
+	modHoldSet
+	modDecaySet
+	modReleaseSet
+)
+
+func setOrAddTimecents(value, amount int16, mask *uint8, flag uint8) int16 {
+	if *mask&flag != 0 {
+		value += amount
+	} else {
+		value = amount
+	}
+	*mask |= flag
+	return value
+}
+
+func intersectRange(current, incoming uint16) uint16 {
+	cur, next := ParseSFRange(current), ParseSFRange(incoming)
+	lo := max(cur.Min, next.Min)
+	hi := min(cur.Max, next.Max)
+	return (uint16(hi) << 8) | uint16(lo)
+}
+
 // if no global generator, you can use nil
 func PGenToGenerator(global *Generator, p []Pgen) Generator {
 	g := NewGenerator()
@@ -104,7 +137,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_endloopAddrsOffset:
 			g.Sample.EndLoopAddrsOffset += p[i].GenAmount
 		case Op_startAddrsCoarseOffset:
-			g.Sample.StartLoopAddrsCoarseOffset += p[i].GenAmount
+			g.Sample.StartAddrsCoarseOffset += p[i].GenAmount
 		case Op_modLfoToPitch:
 			g.LFO.ModLfoToPitch += p[i].GenAmount
 		case Op_vibLfoToPitch:
@@ -120,7 +153,7 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_modEnvToFilterFc:
 			g.Filter.EnvToFilterFc += p[i].GenAmount
 		case Op_endAddrsCoarseOffset:
-			g.Sample.EndLoopAddrsCoarseOffset += p[i].GenAmount
+			g.Sample.EndAddrsCoarseOffset += p[i].GenAmount
 		case Op_modLfoToVolume:
 			g.LFO.ModLfoToVolume += p[i].GenAmount
 		case Op_unused1:
@@ -146,33 +179,33 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_freqVibLFO:
 			g.Wheel.FreqVibLfo += p[i].GenAmount
 		case Op_delayModEnv:
-			g.Filter.DelayModEnv += p[i].GenAmount
+			g.Filter.DelayModEnv = setOrAddTimecents(g.Filter.DelayModEnv, p[i].GenAmount, &g.modTimeMask, modDelaySet)
 		case Op_attackModEnv:
-			g.Filter.AttackModEnv += p[i].GenAmount
+			g.Filter.AttackModEnv = setOrAddTimecents(g.Filter.AttackModEnv, p[i].GenAmount, &g.modTimeMask, modAttackSet)
 		case Op_holdModEnv:
-			g.Filter.HoldModEnv += p[i].GenAmount
+			g.Filter.HoldModEnv = setOrAddTimecents(g.Filter.HoldModEnv, p[i].GenAmount, &g.modTimeMask, modHoldSet)
 		case Op_decayModEnv:
-			g.Filter.DecayModEnv += p[i].GenAmount
+			g.Filter.DecayModEnv = setOrAddTimecents(g.Filter.DecayModEnv, p[i].GenAmount, &g.modTimeMask, modDecaySet)
 		case Op_sustainModEnv:
 			g.Filter.SustainModEnv += p[i].GenAmount
 		case Op_releaseModEnv:
-			g.Filter.ReleaseModEnv += p[i].GenAmount
+			g.Filter.ReleaseModEnv = setOrAddTimecents(g.Filter.ReleaseModEnv, p[i].GenAmount, &g.modTimeMask, modReleaseSet)
 		case Op_keynumToModEnvHold:
 			g.Filter.KeynumToModEnvHold += p[i].GenAmount
 		case Op_keynumToModEnvDecay:
 			g.Filter.KeynumToModEnvDecay += p[i].GenAmount
 		case Op_delayVolEnv:
-			g.Amp.DelayVolEnv += p[i].GenAmount
+			g.Amp.DelayVolEnv = setOrAddTimecents(g.Amp.DelayVolEnv, p[i].GenAmount, &g.ampTimeMask, ampDelaySet)
 		case Op_attackVolEnv:
-			g.Amp.AttackVolEnv += p[i].GenAmount
+			g.Amp.AttackVolEnv = setOrAddTimecents(g.Amp.AttackVolEnv, p[i].GenAmount, &g.ampTimeMask, ampAttackSet)
 		case Op_holdVolEnv:
-			g.Amp.HoldVolEnv += p[i].GenAmount
+			g.Amp.HoldVolEnv = setOrAddTimecents(g.Amp.HoldVolEnv, p[i].GenAmount, &g.ampTimeMask, ampHoldSet)
 		case Op_decayVolEnv:
-			g.Amp.DecayVolEnv += p[i].GenAmount
+			g.Amp.DecayVolEnv = setOrAddTimecents(g.Amp.DecayVolEnv, p[i].GenAmount, &g.ampTimeMask, ampDecaySet)
 		case Op_sustainVolEnv:
 			g.Amp.SustainVolEnv += p[i].GenAmount
 		case Op_releaseVolEnv:
-			g.Amp.ReleaseVolEnv += p[i].GenAmount
+			g.Amp.ReleaseVolEnv = setOrAddTimecents(g.Amp.ReleaseVolEnv, p[i].GenAmount, &g.ampTimeMask, ampReleaseSet)
 		case Op_keynumToVolEnvHold:
 			g.Amp.KeynumToVolEnvHold += p[i].GenAmount
 		case Op_keynumToVolEnvDecay:
@@ -182,9 +215,9 @@ func PGenToGenerator(global *Generator, p []Pgen) Generator {
 		case Op_reserved1:
 			// unused
 		case Op_keyRange:
-			g.Etc.KeyRange = uint16(p[i].GenAmount)
+			g.Etc.KeyRange = intersectRange(g.Etc.KeyRange, uint16(p[i].GenAmount))
 		case Op_velRange:
-			g.Etc.VelRange = uint16(p[i].GenAmount)
+			g.Etc.VelRange = intersectRange(g.Etc.VelRange, uint16(p[i].GenAmount))
 		case Op_startloopAddrsCoarseOffset:
 			g.Sample.StartLoopAddrsCoarseOffset += p[i].GenAmount
 		case Op_keynum:
@@ -234,12 +267,40 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 	//mergedVelRange := rangeMinMax{Min: max(iv.Min, pv.Min), Max: min(iv.Max, pv.Max)}.ToUint16()
 	//fmt.Println("after:", ParseSFRange(mergedVelRange))
 
+	mergeAmpTime := func(preset, instrument int16, flag uint8) int16 {
+		pSet := pgen.ampTimeMask&flag != 0
+		iSet := igen.ampTimeMask&flag != 0
+		switch {
+		case pSet && iSet:
+			return preset + instrument
+		case pSet:
+			return preset
+		case iSet:
+			return instrument
+		default:
+			return -12000
+		}
+	}
+	mergeModTime := func(preset, instrument int16, flag uint8) int16 {
+		pSet := pgen.modTimeMask&flag != 0
+		iSet := igen.modTimeMask&flag != 0
+		switch {
+		case pSet && iSet:
+			return preset + instrument
+		case pSet:
+			return preset
+		case iSet:
+			return instrument
+		default:
+			return -12000
+		}
+	}
 	ret := Generator{
 		Sample: GenSample{
 			StartAddrssOffset:          pgen.Sample.StartAddrssOffset + igen.Sample.StartAddrssOffset,
 			EndAddrsOffset:             pgen.Sample.EndAddrsOffset + igen.Sample.EndAddrsOffset,
 			StartLoopAddrsOffset:       pgen.Sample.StartLoopAddrsOffset + igen.Sample.StartLoopAddrsOffset,
-			EndLoopAddrsOffset:         pgen.Sample.EndLoopAddrsOffset + pgen.Sample.EndLoopAddrsOffset,
+			EndLoopAddrsOffset:         pgen.Sample.EndLoopAddrsOffset + igen.Sample.EndLoopAddrsOffset,
 			StartLoopAddrsCoarseOffset: pgen.Sample.StartLoopAddrsCoarseOffset + igen.Sample.StartLoopAddrsCoarseOffset,
 			EndLoopAddrsCoarseOffset:   pgen.Sample.EndLoopAddrsCoarseOffset + igen.Sample.EndLoopAddrsCoarseOffset,
 			CoarseTune:                 pgen.Sample.CoarseTune + igen.Sample.CoarseTune,
@@ -251,14 +312,14 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 			InitialFilterFc:     pgen.Filter.InitialFilterFc + igen.Filter.InitialFilterFc,
 			InitialFilterQ:      pgen.Filter.InitialFilterQ + igen.Filter.InitialFilterQ,
 			EnvToFilterFc:       pgen.Filter.EnvToFilterFc + igen.Filter.EnvToFilterFc,
-			DelayModEnv:         pgen.Filter.DelayModEnv + igen.Filter.DelayModEnv,
-			AttackModEnv:        pgen.Filter.AttackModEnv + igen.Filter.AttackModEnv,
-			HoldModEnv:          pgen.Filter.HoldModEnv + igen.Filter.HoldModEnv,
-			DecayModEnv:         pgen.Filter.DecayModEnv + igen.Filter.DecayModEnv,
+			DelayModEnv:         mergeModTime(pgen.Filter.DelayModEnv, igen.Filter.DelayModEnv, modDelaySet),
+			AttackModEnv:        mergeModTime(pgen.Filter.AttackModEnv, igen.Filter.AttackModEnv, modAttackSet),
+			HoldModEnv:          mergeModTime(pgen.Filter.HoldModEnv, igen.Filter.HoldModEnv, modHoldSet),
+			DecayModEnv:         mergeModTime(pgen.Filter.DecayModEnv, igen.Filter.DecayModEnv, modDecaySet),
 			SustainModEnv:       pgen.Filter.SustainModEnv + igen.Filter.SustainModEnv,
-			ReleaseModEnv:       pgen.Filter.ReleaseModEnv + igen.Filter.ReleaseModEnv,
-			KeynumToModEnvHold:  pgen.Filter.KeynumToModEnvHold + pgen.Filter.KeynumToModEnvHold,
-			KeynumToModEnvDecay: pgen.Filter.KeynumToModEnvDecay + pgen.Filter.KeynumToModEnvDecay,
+			ReleaseModEnv:       mergeModTime(pgen.Filter.ReleaseModEnv, igen.Filter.ReleaseModEnv, modReleaseSet),
+			KeynumToModEnvHold:  pgen.Filter.KeynumToModEnvHold + igen.Filter.KeynumToModEnvHold,
+			KeynumToModEnvDecay: pgen.Filter.KeynumToModEnvDecay + igen.Filter.KeynumToModEnvDecay,
 		},
 		Effect: GenEffect{
 			ChorusEffectsSend: pgen.Effect.ChorusEffectsSend + igen.Effect.ChorusEffectsSend,
@@ -271,12 +332,12 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 		},
 		Amp: GenAmp{
 			Pan:                 pgen.Amp.Pan + igen.Amp.Pan,
-			DelayVolEnv:         pgen.Amp.DelayVolEnv + igen.Amp.DelayVolEnv,
-			AttackVolEnv:        pgen.Amp.AttackVolEnv + igen.Amp.AttackVolEnv,
-			HoldVolEnv:          pgen.Amp.HoldVolEnv + igen.Amp.HoldVolEnv,
-			DecayVolEnv:         pgen.Amp.DecayVolEnv + igen.Amp.DecayVolEnv,
+			DelayVolEnv:         mergeAmpTime(pgen.Amp.DelayVolEnv, igen.Amp.DelayVolEnv, ampDelaySet),
+			AttackVolEnv:        mergeAmpTime(pgen.Amp.AttackVolEnv, igen.Amp.AttackVolEnv, ampAttackSet),
+			HoldVolEnv:          mergeAmpTime(pgen.Amp.HoldVolEnv, igen.Amp.HoldVolEnv, ampHoldSet),
+			DecayVolEnv:         mergeAmpTime(pgen.Amp.DecayVolEnv, igen.Amp.DecayVolEnv, ampDecaySet),
 			SustainVolEnv:       pgen.Amp.SustainVolEnv + igen.Amp.SustainVolEnv,
-			ReleaseVolEnv:       pgen.Amp.ReleaseVolEnv + igen.Amp.ReleaseVolEnv,
+			ReleaseVolEnv:       mergeAmpTime(pgen.Amp.ReleaseVolEnv, igen.Amp.ReleaseVolEnv, ampReleaseSet),
 			KeynumToVolEnvHold:  pgen.Amp.KeynumToVolEnvHold + igen.Amp.KeynumToVolEnvHold,
 			KeynumToVolEnvDecay: pgen.Amp.KeynumToVolEnvDecay + igen.Amp.KeynumToVolEnvDecay,
 			InitialAttenuation:  pgen.Amp.InitialAttenuation + igen.Amp.InitialAttenuation,
@@ -289,9 +350,9 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 			FreqMod:          pgen.LFO.FreqMod + igen.LFO.FreqMod,
 		},
 		Etc: GenEtc{
-			Instrument: pgen.Etc.Instrument,
-			KeyRange:/*mergedKeyRange*/ igen.Etc.KeyRange,
-			VelRange:/*mergedVelRange*/ igen.Etc.VelRange,
+			Instrument:     pgen.Etc.Instrument,
+			KeyRange:       intersectRange(pgen.Etc.KeyRange, igen.Etc.KeyRange),
+			VelRange:       intersectRange(pgen.Etc.VelRange, igen.Etc.VelRange),
 			Keynum:         igen.Etc.Keynum,
 			Velocity:       igen.Etc.Velocity,
 			SampleID:       igen.Etc.SampleID,
@@ -300,17 +361,21 @@ func MergeGenerator(pgen Generator, igen Generator) Generator {
 			ExclusiveClass: igen.Etc.ExclusiveClass,
 		},
 	}
+	ret.ampTimeMask = pgen.ampTimeMask | igen.ampTimeMask
+	ret.modTimeMask = pgen.modTimeMask | igen.modTimeMask
 	return ret
 }
 
 type Generator struct {
-	Sample GenSample
-	Filter GenFilter
-	Effect GenEffect
-	Wheel  GenWheel
-	Amp    GenAmp
-	LFO    GenLFO
-	Etc    GenEtc
+	Sample      GenSample
+	Filter      GenFilter
+	Effect      GenEffect
+	Wheel       GenWheel
+	Amp         GenAmp
+	LFO         GenLFO
+	Etc         GenEtc
+	ampTimeMask uint8
+	modTimeMask uint8
 }
 
 type GenSample struct {
@@ -400,35 +465,38 @@ type GeneratorParam struct {
 func (g Generator) ToParam() GeneratorParam {
 	gp := GeneratorParam{
 		Sample: SampleParam{
-			StartAddrssOffset:      g.Sample.StartAddrssOffset,
-			EndAddrsOffset:         g.Sample.EndAddrsOffset,
-			StartAddrsCoarseOffset: g.Sample.StartAddrsCoarseOffset,
-			EndAddrsCoarseOffset:   g.Sample.EndAddrsCoarseOffset,
-			StartLoopAddrsOffset:   g.Sample.StartLoopAddrsOffset,
-			EndLoopAddrsOffset:     g.Sample.EndLoopAddrsOffset,
-			CoarseTune:             float32(g.Sample.CoarseTune) / 10,
-			FineTune:               g.Sample.FineTune,
+			StartAddrssOffset:          g.Sample.StartAddrssOffset,
+			EndAddrsOffset:             g.Sample.EndAddrsOffset,
+			StartAddrsCoarseOffset:     g.Sample.StartAddrsCoarseOffset,
+			EndAddrsCoarseOffset:       g.Sample.EndAddrsCoarseOffset,
+			StartLoopAddrsOffset:       g.Sample.StartLoopAddrsOffset,
+			EndLoopAddrsOffset:         g.Sample.EndLoopAddrsOffset,
+			StartLoopAddrsCoarseOffset: g.Sample.StartLoopAddrsCoarseOffset,
+			EndLoopAddrsCoarseOffset:   g.Sample.EndLoopAddrsCoarseOffset,
+			CoarseTune:                 float32(g.Sample.CoarseTune),
+			FineTune:                   g.Sample.FineTune,
+			OverridingRootKey:          g.Sample.OverridingRootKey,
 		},
 		Filter: FilterParam{
-			EnvToPitch:          g.Filter.EnvToPitch / 100,
+			EnvToPitch:          g.Filter.EnvToPitch,
 			InitialFilterFc:     float32(8.176 * math.Exp2(float64(g.Filter.InitialFilterFc)/1200)),
 			InitialFilterQ:      int16(math.Round(float64(g.Filter.InitialFilterQ) / 10)),
-			EnvToFilterFc:       int16(math.Round(float64(g.Filter.InitialFilterFc) / 100)),
-			DelayModEnv:         float32(math.Exp2(float64(g.Filter.InitialFilterFc) / 1200)),
+			EnvToFilterFc:       g.Filter.EnvToFilterFc,
+			DelayModEnv:         float32(math.Exp2(float64(g.Filter.DelayModEnv) / 1200)),
 			AttackModEnv:        float32(math.Exp2(float64(g.Filter.AttackModEnv) / 1200)),
 			HoldModEnv:          float32(math.Exp2(float64(g.Filter.HoldModEnv) / 1200)),
 			DecayModEnv:         float32(math.Exp2(float64(g.Filter.DecayModEnv) / 1200)),
-			SustainModEnv:       g.Filter.SustainModEnv / 10,
-			ReleaseModEnv:       int16(math.Round(math.Exp2(float64(g.Filter.ReleaseModEnv) / 1200))),
-			KeynumToModEnvHold:  int16(math.Round(float64(g.Filter.KeynumToModEnvHold / 100))),
-			KeynumToModEnvDecay: int16(math.Round(float64(g.Filter.KeynumToModEnvDecay / 100))),
+			SustainModEnv:       int16(math.Round(float64(g.Filter.SustainModEnv) / 10)),
+			ReleaseModEnv:       float32(math.Exp2(float64(g.Filter.ReleaseModEnv) / 1200)),
+			KeynumToModEnvHold:  g.Filter.KeynumToModEnvHold,
+			KeynumToModEnvDecay: g.Filter.KeynumToModEnvDecay,
 		},
 		Effect: EffectParam{
 			ReverbEffectsSend: int16(math.Round(float64(g.Effect.ReverbEffectsSend) / 10)),
 			ChorusEffectsSend: int16(math.Round(float64(g.Effect.ChorusEffectsSend) / 10)),
 		},
 		Wheel: WheelParam{
-			VibLfoToPitch: int16(g.Wheel.VibLfoToPitch / 100),
+			VibLfoToPitch: g.Wheel.VibLfoToPitch,
 			DelayVibLfo:   float32(math.Exp2(float64(g.Wheel.DelayVibLfo) / 1200)),
 			FreqVibLfo:    float32(8.176 * math.Exp2(float64(g.Wheel.FreqVibLfo)/1200)),
 		},
@@ -440,16 +508,16 @@ func (g Generator) ToParam() GeneratorParam {
 			DecayVolEnv:         float32(math.Exp2(float64(g.Amp.DecayVolEnv) / 1200)),
 			SustainVolEnv:       int16(math.Round(float64(g.Amp.SustainVolEnv) / 10)),
 			ReleaseVolEnv:       float32(math.Exp2(float64(g.Amp.ReleaseVolEnv) / 1200)),
-			KeynumToVolEnvHold:  int16(math.Round(float64(g.Amp.KeynumToVolEnvHold) / 100)),
-			KeynumToVolEnvDecay: int16(math.Round(float64(g.Amp.KeynumToVolEnvDecay) / 100)),
+			KeynumToVolEnvHold:  g.Amp.KeynumToVolEnvHold,
+			KeynumToVolEnvDecay: g.Amp.KeynumToVolEnvDecay,
 			InitialAttenuation:  int16(math.Round(float64(g.Amp.InitialAttenuation) / 10)),
 		},
 		LFO: LFOParam{
-			ModLfoToPitch:    int16(math.Round(float64(g.LFO.ModLfoToPitch) / 100)),
-			ModLfoToFilterFc: int16(math.Round(float64(g.LFO.ModLfoToFilterFc) / 100)),
+			ModLfoToPitch:    g.LFO.ModLfoToPitch,
+			ModLfoToFilterFc: g.LFO.ModLfoToFilterFc,
 			ModLfoToVolume:   int16(math.Round(float64(g.LFO.ModLfoToVolume) / 10)),
-			DelayModLFO:      float32(math.Exp2(float64(g.Amp.DelayVolEnv) / 1200)),
-			FreqModLFO:       float32(8.176 * math.Exp2(float64(g.Amp.DelayVolEnv)/1200)),
+			DelayModLFO:      float32(math.Exp2(float64(g.LFO.DelayMod) / 1200)),
+			FreqModLFO:       float32(8.176 * math.Exp2(float64(g.LFO.FreqMod)/1200)),
 		},
 		Etc: EtcParam{
 			Instrument:     g.Etc.Instrument,
@@ -475,15 +543,17 @@ func GeneratorsToParam(g []Generator) []GeneratorParam {
 }
 
 type SampleParam struct {
-	StartAddrssOffset      int16   // (sample) start offset
-	EndAddrsOffset         int16   // (sample) end offset
-	StartLoopAddrsOffset   int16   // (32000 sample) loop start offset(sample)
-	EndLoopAddrsOffset     int16   // (sample) loop end offset
-	StartAddrsCoarseOffset int16   // (32k sample)
-	EndAddrsCoarseOffset   int16   // (32k sample)
-	CoarseTune             float32 // half-note tune
-	FineTune               int16   // (cent) tune
-	OverridingRootKey      int16   // root key overriding
+	StartAddrssOffset          int16   // (sample) start offset
+	EndAddrsOffset             int16   // (sample) end offset
+	StartLoopAddrsOffset       int16   // (32000 sample) loop start offset(sample)
+	EndLoopAddrsOffset         int16   // (sample) loop end offset
+	StartLoopAddrsCoarseOffset int16   // (32k sample) loop start offset
+	EndLoopAddrsCoarseOffset   int16   // (32k sample) loop end offset
+	StartAddrsCoarseOffset     int16   // (32k sample)
+	EndAddrsCoarseOffset       int16   // (32k sample)
+	CoarseTune                 float32 // half-note tune
+	FineTune                   int16   // (cent) tune
+	OverridingRootKey          int16   // root key overriding
 }
 
 type FilterParam struct {
@@ -496,7 +566,7 @@ type FilterParam struct {
 	HoldModEnv          float32 // (sec) filter/pitch envelope hold time
 	DecayModEnv         float32 // (sec) filter/pitch envelope decay time
 	SustainModEnv       int16   // (%) filter/pitch envelope sustain amount
-	ReleaseModEnv       int16   // (sec) filter/pitch envelope release time
+	ReleaseModEnv       float32 // (sec) filter/pitch envelope release time
 	KeynumToModEnvHold  int16   // (key) keynum effect to decay hold
 	KeynumToModEnvDecay int16   // (key) keynum effect to decay time
 }

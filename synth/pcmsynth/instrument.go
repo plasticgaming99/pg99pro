@@ -10,10 +10,16 @@ import (
 
 // might be stereo, or multi-layered
 func (ins *Instrument) GetVoice(key, vel int) []*Voice {
+	return ins.GetVoicesInto(nil, key, vel)
+}
+
+// GetVoicesInto fills a caller-owned slice so MIDI channels can reuse the
+// temporary slice used to collect the sample layers for each note.
+func (ins *Instrument) GetVoicesInto(dst []*Voice, key, vel int) []*Voice {
+	vs := dst[:0]
 	if ins == nil {
-		return nil
+		return vs
 	}
-	vs := make([]*Voice, 0, 1)
 	for i := range ins.IVoices {
 		if uint8(ins.IVoices[i].keyMin) <= uint8(key) &&
 			uint8(key) <= uint8(ins.IVoices[i].keyMax) &&
@@ -25,11 +31,31 @@ func (ins *Instrument) GetVoice(key, vel int) []*Voice {
 			*newvoice = *ins.IVoices[i].voice
 			newvoice.key = key
 			newvoice.vel = vel
-			newvoice.baseStep = float64(uint8(key)-newvoice.voice.OriginalKey) * float64(newvoice.generator.Etc.ScaleTuning)
+			newvoice.playKey = key
+			newvoice.playVel = vel
+			newvoice.playKeySet = true
+			if newvoice.generator.Etc.Keynum >= 0 {
+				newvoice.playKey = int(newvoice.generator.Etc.Keynum)
+			}
+			if newvoice.generator.Etc.Velocity >= 0 {
+				newvoice.playVel = int(newvoice.generator.Etc.Velocity)
+			}
+			rootKey := int(newvoice.voice.OriginalKey)
+			// SF2 uses 255 to mean that the sample's root key is unspecified;
+			// the format defines MIDI note 60 as the fallback.
+			if rootKey > 127 {
+				rootKey = 60
+			}
+			if newvoice.generator.Sample.OverridingRootKey >= 0 {
+				rootKey = int(newvoice.generator.Sample.OverridingRootKey)
+			}
+			// Key distance is in semitones; scale tuning is cents per semitone.
+			newvoice.baseStep = float64(newvoice.playKey-rootKey) * float64(newvoice.generator.Etc.ScaleTuning)
 			newvoice.baseStep += float64(newvoice.generator.Sample.CoarseTune) * 100
 			newvoice.baseStep += float64(newvoice.generator.Sample.FineTune)
+			newvoice.baseStep += float64(newvoice.voice.PitchCorr)
 			newvoice.baseStep = math.Exp2(newvoice.baseStep / 1200)
-			newvoice.step = newvoice.baseStep
+			newvoice.updateStep()
 			vs = append(vs, newvoice)
 		}
 	}
@@ -122,22 +148,85 @@ func NewInstruments(s2 *sf2abst.SF2Abst, voices []VoiceSample) map[uint32]*Instr
 				if mIgenParams[iii].Etc.SampleID == -1 {
 					continue
 				}
-				v = voices[mIgenParams[iii].Etc.SampleID]
+				sampleID := int(mIgenParams[iii].Etc.SampleID)
+				v = voices[sampleID]
+				if v.SampleType&0x7fff == sf2abst.SampleTypeStereoRight {
+					leftID := int(v.SampleLink)
+					if leftID >= 0 && leftID < len(voices) && voices[leftID].SampleType&0x7fff == sf2abst.SampleTypeStereoLeft {
+						v = voices[leftID]
+					}
+				}
+				if v.ShdrOrigin >= 0 && v.ShdrOrigin < len(s2.Pdta.Shdr) {
+					applyGeneratorSampleOffsets(&v, mIgenParams[iii].Sample, s2.Pdta.Shdr[v.ShdrOrigin].SampleRate)
+				}
 				iv.voice = NewVoice(&v, &mIgenParams[iii])
 				ivs = append(ivs, iv)
 			}
 
-			in := Instrument{
-				Name:          s2.Pdta.Phdr[i].Name,
-				ProgramNumber: int(s2.Pdta.Phdr[i].PresetNo),
-				IVoices:       ivs,
-			}
 			pk := PackInst(uint8(s2.Pdta.Phdr[i].Bank), uint8(s2.Pdta.Phdr[i].Bank>>8), uint8(s2.Pdta.Phdr[i].PresetNo))
-			rt[pk] = &in
+			in := rt[pk]
+			if in == nil {
+				in = &Instrument{
+					Name:          s2.Pdta.Phdr[i].Name,
+					ProgramNumber: int(s2.Pdta.Phdr[i].PresetNo),
+				}
+				rt[pk] = in
+			}
+			in.IVoices = append(in.IVoices, ivs...)
 		}
 	}
 
 	return rt
+}
+
+func applyGeneratorSampleOffsets(v *VoiceSample, p sf2abst.SampleParam, sourceRate uint32) {
+	if v == nil || len(v.Sample) == 0 || sourceRate == 0 || v.SampleRate == 0 {
+		return
+	}
+	ratio := float64(v.SampleRate) / float64(sourceRate)
+	resampled := func(fine, coarse int16) int {
+		return int(math.Round(float64(int64(fine)+int64(coarse)*32768) * ratio))
+	}
+	start := resampled(p.StartAddrssOffset, p.StartAddrsCoarseOffset)
+	endAdjustment := resampled(p.EndAddrsOffset, p.EndAddrsCoarseOffset)
+	loopStartAdjustment := resampled(p.StartLoopAddrsOffset, p.StartLoopAddrsCoarseOffset)
+	loopEndAdjustment := resampled(p.EndLoopAddrsOffset, p.EndLoopAddrsCoarseOffset)
+	oldLength := len(v.Sample)
+	if start < 0 {
+		start = 0
+	}
+	if start > oldLength {
+		start = oldLength
+	}
+	end := oldLength + endAdjustment
+	if end < start {
+		end = start
+	}
+	if end > oldLength {
+		end = oldLength
+	}
+	oldLoopStart, oldLoopEnd := int(v.LoopStart), int(v.LoopEnd)
+	v.Sample = v.Sample[start:end]
+	if len(v.RightSample) >= end {
+		v.RightSample = v.RightSample[start:end]
+	} else {
+		v.RightSample = nil
+	}
+	loopStart := oldLoopStart + loopStartAdjustment - start
+	loopEnd := oldLoopEnd + loopEndAdjustment - start
+	if loopStart < 0 {
+		loopStart = 0
+	}
+	if loopStart > len(v.Sample) {
+		loopStart = len(v.Sample)
+	}
+	if loopEnd < loopStart {
+		loopEnd = loopStart
+	}
+	if loopEnd > len(v.Sample) {
+		loopEnd = len(v.Sample)
+	}
+	v.LoopStart, v.LoopEnd = uint32(loopStart), uint32(loopEnd)
 }
 
 func GetInstrument(ins map[uint32]*Instrument, msb, lsb, prog uint8) *Instrument {

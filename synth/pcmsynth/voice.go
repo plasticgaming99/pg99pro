@@ -27,12 +27,14 @@ type VoiceSample struct {
 	Name        string
 	SampleType  sf2abst.SampleType
 	Sample      []float32 // left/mono sample
+	RightSample []float32 // right channel for linked stereo samples
 	SampleRate  uint32
 	LoopStart   uint32
 	LoopEnd     uint32
 	OriginalKey uint8
 	PitchCorr   int8
 	ShdrOrigin  int // original shdr index
+	SampleLink  uint16
 }
 
 func NewGenerateVoicesOptions() *GenerateVoicesOptions {
@@ -79,6 +81,7 @@ func GenerateVoiceSamples(sf2 *sf2abst.SF2Abst, op *GenerateVoicesOptions, sf2Fi
 			OriginalKey: smpls[i].OriginalKey,
 			PitchCorr:   smpls[i].PitchCorr,
 			ShdrOrigin:  i,
+			SampleLink:  smpls[i].SampleLink,
 		}
 
 		sample := make([]float32, 0)
@@ -106,10 +109,42 @@ func GenerateVoiceSamples(sf2 *sf2abst.SF2Abst, op *GenerateVoicesOptions, sf2Fi
 				return nil, err
 			}
 			sample = append(sample, resampled...)
+			if smpls[i].SampleRate > 0 {
+				ratio := float64(op.ResamplerRate) / float64(smpls[i].SampleRate)
+				voice.LoopStart = uint32(float64(voice.LoopStart) * ratio)
+				voice.LoopEnd = uint32(float64(voice.LoopEnd) * ratio)
+				// Resamplers can return a few fewer frames than the ideal rate
+				// ratio predicts. Clamp loop bounds to the data we actually got.
+				if voice.LoopStart >= uint32(len(resampled)) {
+					voice.LoopStart = 0
+					voice.LoopEnd = 0
+				} else if voice.LoopEnd > uint32(len(resampled)) {
+					voice.LoopEnd = uint32(len(resampled))
+				}
+				voice.SampleRate = uint32(op.ResamplerRate)
+			}
+		} else {
+			for i := 0; i < len(buf); i += 2 {
+				sample = append(sample, SmplToFloat32(int16(binary.LittleEndian.Uint16(buf[i:i+2]))))
+			}
 		}
 		voice.Sample = sample
 
 		voices = append(voices, voice)
+	}
+
+	// SoundFont stereo samples are stored as linked left/right sample headers.
+	// Attach the right channel to the left sample so an instrument zone creates
+	// one stereo voice rather than two separately-triggered voices.
+	for i := range voices {
+		if voices[i].SampleType&0x7fff != sf2abst.SampleTypeStereoLeft {
+			continue
+		}
+		rightIndex := int(voices[i].SampleLink)
+		if rightIndex >= 0 && rightIndex < len(voices) &&
+			voices[rightIndex].SampleType&0x7fff == sf2abst.SampleTypeStereoRight {
+			voices[i].RightSample = voices[rightIndex].Sample
+		}
 	}
 
 	return voices, nil
